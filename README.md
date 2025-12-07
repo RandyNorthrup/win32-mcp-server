@@ -4,19 +4,19 @@
 
 Full control over Windows desktop applications with 25+ tools: screenshots, OCR, mouse/keyboard control, window management, process control, clipboard operations, and more.
 
-## 🚀 Features
+## Features
 
-### 📸 Screen Capture
+### Screen Capture
 - Full screen screenshots
 - Window-specific capture
 - Region capture
 
-### 🔍 OCR (Optical Character Recognition)
+### OCR (Optical Character Recognition)
 - Full screen text extraction
 - Region-based OCR
 - Powered by Tesseract
 
-### 🖱️ Mouse Control
+### Mouse Control
 - Click (left/right/middle)
 - Double-click
 - Drag and drop
@@ -24,18 +24,18 @@ Full control over Windows desktop applications with 25+ tools: screenshots, OCR,
 - Scroll (up/down)
 - Get mouse position
 
-### ⌨️ Keyboard Control
+### Keyboard Control
 - Type text with configurable speed
 - Press individual keys
 - Execute hotkey combinations (Ctrl+C, Alt+F4, etc.)
 - Full keyboard shortcuts support
 
-### 📋 Clipboard
+### Clipboard
 - Copy text to clipboard
 - Paste/read clipboard content
 - Seamless clipboard integration
 
-### 🪟 Window Management
+### Window Management
 - List all open windows
 - Focus/activate windows
 - Close windows
@@ -44,13 +44,13 @@ Full control over Windows desktop applications with 25+ tools: screenshots, OCR,
 - Move windows
 - Get window details (position, size, state)
 
-### 🔧 Process Management
+### Process Management
 - List running processes with PIDs
 - Filter processes by name
 - Kill processes by PID
 - Memory usage monitoring
 
-## 📦 Installation
+## Installation
 
 ### Prerequisites
 
@@ -85,7 +85,7 @@ cd win32-mcp-server
 pip install -e .
 ```
 
-## 🔧 Configuration
+## Configuration
 
 ### VS Code with GitHub Copilot
 
@@ -127,7 +127,7 @@ After installing via pip, add to `%APPDATA%\Claude\claude_desktop_config.json`:
 
 The server uses **STDIO transport** and works with any MCP-compatible client that supports stdio.
 
-## 🎯 Usage Examples
+## Usage Examples
 
 ### Capture Screenshot
 ```
@@ -169,7 +169,7 @@ The server uses **STDIO transport** and works with any MCP-compatible client tha
 "Kill process with PID 1234"
 ```
 
-## 🛠️ Available Tools
+## Available Tools
 
 | Tool | Description |
 |------|-------------|
@@ -199,9 +199,9 @@ The server uses **STDIO transport** and works with any MCP-compatible client tha
 | `resize_window` | Resize window |
 | `move_window` | Move window position |
 
-## 🔒 Security Considerations
+## Security Considerations
 
-**⚠️ WARNING**: This server has powerful system control capabilities including:
+**WARNING**: This server has powerful system control capabilities including:
 - Mouse and keyboard control
 - Process termination
 - Clipboard access
@@ -217,7 +217,7 @@ The server uses **STDIO transport** and works with any MCP-compatible client tha
 4. **Access Control**: Limit who can access the MCP client
 5. **Disable PyAutoGUI Failsafe**: Server disables failsafe for automation - be cautious
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Tesseract Not Found
 ```
@@ -243,7 +243,7 @@ Window not found: [title]
 ```
 **Solution**: Use partial window title matching. Check exact title with `list_windows` first.
 
-## 📝 Development
+## Development
 
 ### Project Structure
 ```
@@ -264,11 +264,11 @@ win32-mcp-server/
 - **pytesseract**: OCR text extraction
 - **psutil**: Process management
 
-## 📄 License
+## License
 
 MIT License - see LICENSE file
 
-## 🤝 Contributing
+## Contributing
 
 Contributions welcome! Please:
 1. Fork the repository
@@ -276,16 +276,16 @@ Contributions welcome! Please:
 3. Make your changes
 4. Submit a pull request
 
-## 🔗 Links
+## Links
 
 - **Repository**: https://github.com/RandyNorthrup/win32-mcp-server
 - **Issues**: https://github.com/RandyNorthrup/win32-mcp-server/issues
 - **MCP Documentation**: https://modelcontextprotocol.io/
 
-## 📧 Support
+## Support
 
 For bugs and feature requests, please use [GitHub Issues](https://github.com/RandyNorthrup/win32-mcp-server/issues).
 
 ---
 
-**Made with ❤️ for Windows automation and AI agents**
+**Made for Windows automation and AI agents**

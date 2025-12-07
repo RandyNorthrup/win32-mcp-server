@@ -21,6 +21,11 @@ wheels/
 .installed.cfg
 *.egg
 
+# VS Code Extension
+*.vsix
+node_modules/
+.vscode-test/
+
 # Virtual environments
 venv/
 env/
@@ -46,3 +51,7 @@ htmlcov/
 
 # Logs
 *.log
+
+# Temp files
+temp/
+tmp/
