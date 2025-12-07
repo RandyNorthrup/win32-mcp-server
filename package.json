@@ -1,7 +1,7 @@
 {
   "name": "win32-mcp-inspector",
   "displayName": "Windows Automation Inspector (MCP)",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "publisher": "RandyNorthrup",
   "description": "Comprehensive Windows automation MCP server with 25+ tools for screen capture, OCR, mouse/keyboard control, window management, and process control",
   "categories": [
