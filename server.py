@@ -3,7 +3,6 @@ MCP Server for Windows UI Inspection and Control
 Full automation: OCR, drag/drop, mouse, keyboard, clipboard, process management
 
 Author: Randy Northrup
-Email: Randy@scnetsolutions.com
 GitHub: https://github.com/RandyNorthrup/win32-mcp-server
 """
 

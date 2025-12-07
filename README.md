@@ -289,7 +289,6 @@ For bugs and feature requests, please use [GitHub Issues](https://github.com/Ran
 ## Credits
 
 **Author**: Randy Northrup  
-**Email**: Randy@scnetsolutions.com  
 **GitHub**: [@RandyNorthrup](https://github.com/RandyNorthrup)
 
 Built with Python, MCP SDK, and the following open-source libraries:
