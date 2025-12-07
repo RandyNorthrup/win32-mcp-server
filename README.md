@@ -286,6 +286,22 @@ Contributions welcome! Please:
 
 For bugs and feature requests, please use [GitHub Issues](https://github.com/RandyNorthrup/win32-mcp-server/issues).
 
+## Credits
+
+**Author**: Randy Northrup  
+**Email**: Randy@scnetsolutions.com  
+**GitHub**: [@RandyNorthrup](https://github.com/RandyNorthrup)
+
+Built with Python, MCP SDK, and the following open-source libraries:
+- [mcp](https://github.com/modelcontextprotocol/python-sdk) - Model Context Protocol SDK
+- [mss](https://github.com/BoboTiG/python-mss) - Fast screenshot capture
+- [PyAutoGUI](https://github.com/asweigart/pyautogui) - Mouse and keyboard automation
+- [pygetwindow](https://github.com/asweigart/PyGetWindow) - Window management
+- [pytesseract](https://github.com/madmaze/pytesseract) - OCR wrapper for Tesseract
+- [psutil](https://github.com/giampaolo/psutil) - Process and system utilities
+- [pyperclip](https://github.com/asweigart/pyperclip) - Clipboard operations
+- [Pillow](https://github.com/python-pillow/Pillow) - Image processing
+
 ---
 
 **Made for Windows automation and AI agents**
