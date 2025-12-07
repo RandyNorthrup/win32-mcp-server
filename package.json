@@ -1,0 +1,57 @@
+{
+  "name": "win32-mcp-inspector",
+  "displayName": "Windows Automation Inspector (MCP)",
+  "version": "1.0.0",
+  "publisher": "RandyNorthrup",
+  "description": "Comprehensive Windows automation MCP server with 25+ tools for screen capture, OCR, mouse/keyboard control, window management, and process control",
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "mcp",
+    "windows",
+    "automation",
+    "screenshot",
+    "ocr",
+    "mouse",
+    "keyboard",
+    "window-management",
+    "process-control",
+    "clipboard",
+    "ui-testing",
+    "desktop-automation"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/RandyNorthrup/win32-mcp-server.git"
+  },
+  "bugs": {
+    "url": "https://github.com/RandyNorthrup/win32-mcp-server/issues"
+  },
+  "homepage": "https://github.com/RandyNorthrup/win32-mcp-server#readme",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "main": "./extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "configuration": {
+      "title": "Windows MCP Inspector",
+      "properties": {
+        "win32-mcp.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Windows Automation Inspector MCP server"
+        },
+        "win32-mcp.autoInstall": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically install win32-mcp-server Python package if not found"
+        }
+      }
+    }
+  }
+}
