@@ -40,9 +40,13 @@ dependencies = [
 Homepage = "https://github.com/RandyNorthrup/win32-mcp-server"
 Repository = "https://github.com/RandyNorthrup/win32-mcp-server"
 Issues = "https://github.com/RandyNorthrup/win32-mcp-server/issues"
+Documentation = "https://github.com/RandyNorthrup/win32-mcp-server#readme"
 
 [project.scripts]
 win32-mcp-server = "server:main"
+
+[project.entry-points."mcp.servers"]
+win32-inspector = "server:main"
 
 [tool.setuptools]
 py-modules = ["server"]

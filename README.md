@@ -62,6 +62,20 @@ Full control over Windows desktop applications with 25+ tools: screenshots, OCR,
 
 ### Install Package
 
+**Option 1: Install from PyPI (Recommended)**
+
+```bash
+pip install win32-mcp-server
+```
+
+**Option 2: Install from GitHub**
+
+```bash
+pip install git+https://github.com/RandyNorthrup/win32-mcp-server.git
+```
+
+**Option 3: Install from source**
+
 ```bash
 # Clone repository
 git clone https://github.com/RandyNorthrup/win32-mcp-server.git
@@ -71,59 +85,39 @@ cd win32-mcp-server
 pip install -e .
 ```
 
-Or install directly from GitHub:
-
-```bash
-pip install git+https://github.com/RandyNorthrup/win32-mcp-server.git
-```
-
 ## 🔧 Configuration
 
 ### VS Code with GitHub Copilot
 
-Add to your MCP configuration (`%APPDATA%\Code\User\mcp.json`):
+After installing via pip, add to your MCP configuration (`%APPDATA%\Code\User\mcp.json`):
 
 ```json
 {
   "servers": {
     "win32-inspector": {
       "type": "stdio",
-      "command": "python",
-      "args": [
-        "-m",
-        "server"
-      ]
+      "command": "win32-mcp-server"
     }
   }
 }
 ```
 
-Or use direct path:
-
-```json
-{
-  "servers": {
-    "win32-inspector": {
-      "type": "stdio",
-      "command": "python",
-      "args": [
-        "C:\\path\\to\\win32-mcp-server\\server.py"
-      ]
-    }
-  }
-}
-```
+**Or install from VS Code MCP Extensions:**
+1. Open VS Code
+2. Press `Ctrl+Shift+P`
+3. Type "MCP: Install Server"
+4. Search for "Windows Automation Inspector"
+5. Click Install
 
 ### Claude Desktop
 
-Add to `%APPDATA%\Claude\claude_desktop_config.json`:
+After installing via pip, add to `%APPDATA%\Claude\claude_desktop_config.json`:
 
 ```json
 {
   "mcpServers": {
     "win32-inspector": {
-      "command": "python",
-      "args": ["-m", "server"]
+      "command": "win32-mcp-server"
     }
   }
 }
