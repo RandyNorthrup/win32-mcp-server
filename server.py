@@ -231,11 +231,16 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent | ImageConten
     return [TextContent(type="text", text=f"Unknown tool: {name}")]
 
 
-async def main():
+async def async_main():
     from mcp.server.stdio import stdio_server
     async with stdio_server() as (read_stream, write_stream):
         await app.run(read_stream, write_stream, app.create_initialization_options())
 
 
+def main():
+    """Entry point for installed package"""
+    asyncio.run(async_main())
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
