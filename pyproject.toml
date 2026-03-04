@@ -4,15 +4,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "win32-mcp-server"
-version = "1.0.1"
-description = "Comprehensive Windows automation MCP server for AI agents"
+version = "2.0.0"
+description = "Enterprise-grade Windows automation MCP server for AI agents — 40+ tools including click_text, wait_for_text, structured OCR, and batch operations"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
     {name = "Randy Northrup", email = "randy@example.com"}
 ]
-keywords = ["mcp", "windows", "automation", "ocr", "ai"]
+keywords = ["mcp", "windows", "automation", "ocr", "ai", "ui-testing", "desktop-automation"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -21,8 +21,10 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Operating System :: Microsoft :: Windows",
     "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Software Development :: Testing",
 ]
 
 dependencies = [
@@ -34,6 +36,8 @@ dependencies = [
     "pyperclip>=1.8.2",
     "pytesseract>=0.3.10",
     "psutil>=5.9.0",
+    "numpy>=1.24.0",
+    "rapidfuzz>=3.0.0",
 ]
 
 [project.urls]
@@ -43,10 +47,13 @@ Issues = "https://github.com/RandyNorthrup/win32-mcp-server/issues"
 Documentation = "https://github.com/RandyNorthrup/win32-mcp-server#readme"
 
 [project.scripts]
-win32-mcp-server = "server:main"
+win32-mcp-server = "win32_mcp_server:main"
 
 [project.entry-points."mcp.servers"]
-win32-inspector = "server:main"
+win32-inspector = "win32_mcp_server:main"
+
+[tool.setuptools.packages.find]
+include = ["win32_mcp_server*"]
 
 [tool.setuptools]
 py-modules = ["server"]

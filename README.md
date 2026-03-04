@@ -1,95 +1,129 @@
-# Windows MCP Server
+# Win32 MCP Server
 
-**Comprehensive Windows automation MCP server for AI agents**
+**Enterprise-grade Windows automation for AI agents — 47 tools over MCP**
 
-Full control over Windows desktop applications with 25+ tools: screenshots, OCR, mouse/keyboard control, window management, process control, clipboard operations, and more.
+The most comprehensive Windows desktop automation server for the [Model Context Protocol](https://modelcontextprotocol.io/). Give any MCP-compatible AI agent full control over Windows applications: intelligent text finding and clicking, structured OCR, screenshot capture, mouse/keyboard input, window management, process control, and multi-step batch operations — all through a single MCP server.
+
+[![Version](https://img.shields.io/badge/version-2.0.0-blue)](https://github.com/RandyNorthrup/win32-mcp-server/releases)
+[![Python](https://img.shields.io/badge/python-3.10%2B-green)](https://python.org)
+[![License](https://img.shields.io/badge/license-MIT-yellow)](LICENSE)
+[![MCP](https://img.shields.io/badge/MCP-compatible-purple)](https://modelcontextprotocol.io/)
+
+---
+
+## What's New in v2.0
+
+- **47 tools** (up from 25) — fully modular, enterprise-quality architecture
+- **Smart automation tools** — `click_text`, `wait_for_text`, `fill_field`, `execute_sequence`, and more
+- **Structured OCR** — bounding boxes, confidence scores, and screen coordinates for every word
+- **Fuzzy window matching** — find windows by partial title with intelligent suggestions
+- **DPI-aware coordinates** — automatic per-monitor DPI awareness for high-resolution displays
+- **Image preprocessing** — auto, light_bg, dark_bg, high_contrast modes for better OCR accuracy
+- **Multi-step sequences** — batch multiple tool calls in a single request
+- **Screenshot comparison** — pixel-level diff between current screen and a reference image
+- **Window snapshots** — combined screenshot + OCR in a single call
+- **Robust error handling** — structured JSON errors with actionable suggestions
+
+---
 
 ## Features
 
-### Screen Capture
-- Full screen screenshots
-- Window-specific capture
-- Region capture
+### Smart Automation (the most powerful tools)
+| Tool | Description |
+|------|-------------|
+| `click_text` | Find text on screen and click it — no coordinates needed |
+| `find_text_on_screen` | Locate all occurrences of text with screen coordinates |
+| `wait_for_text` | Poll until text appears on screen (with timeout) |
+| `assert_text_visible` | Verify text is or is not visible (for UI testing) |
+| `fill_field` | Click a labeled input field and type a value |
+| `get_window_snapshot` | Screenshot + structured OCR in one call |
+| `right_click_menu` | Right-click and OCR the context menu items |
+| `execute_sequence` | Run up to 50 tools in sequence without round-trips |
 
-### OCR (Optical Character Recognition)
-- Full screen text extraction
-- Region-based OCR
-- Powered by Tesseract
+### Screen Capture (6 tools)
+- Full screen, per-window, and per-monitor capture
+- PNG, JPEG, and WebP output with quality/scale controls
+- Pixel color sampling at any coordinate
+- Screenshot comparison with similarity metrics
 
-### Mouse Control
-- Click (left/right/middle)
-- Double-click
-- Drag and drop
-- Mouse movement with duration
-- Scroll (up/down)
-- Get mouse position
+### OCR — Optical Character Recognition (5 tools)
+- Full screen and region-based text extraction
+- Per-window OCR with automatic focus and capture
+- **Structured mode** — every word with bounding box, confidence, line/block/word numbers
+- Intelligent preprocessing: auto-detects light/dark backgrounds
+- Coordinates map back to original screen space for accurate clicking
 
-### Keyboard Control
-- Type text with configurable speed
-- Press individual keys
-- Execute hotkey combinations (Ctrl+C, Alt+F4, etc.)
-- Full keyboard shortcuts support
+### Mouse Control (8 tools)
+- Click, double-click, triple-click (left/right/middle buttons)
+- Drag-and-drop with configurable duration and button
+- Mouse move with smooth animation
+- Vertical and horizontal scrolling at any position
+- Current position reporting
 
-### Clipboard
-- Copy text to clipboard
-- Paste/read clipboard content
-- Seamless clipboard integration
+### Keyboard Control (3 tools)
+- Type text with Unicode support (auto-fallback to clipboard paste)
+- Press individual keys or key combinations (`ctrl+c`, `alt+f4`)
+- Execute hotkey combos from arrays (`["ctrl", "shift", "s"]`)
 
-### Window Management
-- List all open windows
-- Focus/activate windows
-- Close windows
-- Minimize/maximize/restore
-- Resize windows
-- Move windows
-- Get window details (position, size, state)
+### Clipboard (2 tools)
+- Copy text to system clipboard
+- Read current clipboard contents
 
-### Process Management
-- List running processes with PIDs
-- Filter processes by name
-- Kill processes by PID
-- Memory usage monitoring
+### Window Management (10 tools)
+- List all windows with fuzzy title filtering
+- Detailed window info (PID, position, size, state, process name, memory)
+- Focus, close, minimize, maximize, restore
+- Resize and move to exact coordinates
+- Wait for a window to appear (polling with timeout)
+- Fuzzy matching with intelligent suggestions on miss
+
+### Process Management (4 tools)
+- List processes with filtering, sorting, and pagination
+- Graceful termination with force-kill fallback
+- Launch applications with optional wait-for-completion
+- Wait for a process to become idle (CPU threshold monitoring)
+
+### System (1 tool)
+- `health_check` — verify all dependencies, DPI, monitors, Tesseract, and tool count
+
+---
 
 ## Installation
 
 ### Prerequisites
 
-1. **Python 3.10+** installed
-2. **Tesseract OCR** for text recognition:
+1. **Python 3.10+**
+2. **Tesseract OCR** (optional — required only for OCR tools):
    - Download: https://github.com/UB-Mannheim/tesseract/wiki
-   - Install to default location or add to PATH
+   - Install and ensure it's on PATH
    - Verify: `tesseract --version`
 
 ### Install Package
 
-**Option 1: Install from PyPI (Recommended)**
-
+**From PyPI (recommended):**
 ```bash
 pip install win32-mcp-server
 ```
 
-**Option 2: Install from GitHub**
-
+**From GitHub:**
 ```bash
 pip install git+https://github.com/RandyNorthrup/win32-mcp-server.git
 ```
 
-**Option 3: Install from source**
-
+**From source:**
 ```bash
-# Clone repository
 git clone https://github.com/RandyNorthrup/win32-mcp-server.git
 cd win32-mcp-server
-
-# Install with dependencies
 pip install -e .
 ```
+
+---
 
 ## Configuration
 
 ### VS Code with GitHub Copilot
 
-After installing via pip, add to your MCP configuration (`%APPDATA%\Code\User\mcp.json`):
+Add to your MCP configuration (`%APPDATA%\Code\User\mcp.json`):
 
 ```json
 {
@@ -102,16 +136,11 @@ After installing via pip, add to your MCP configuration (`%APPDATA%\Code\User\mc
 }
 ```
 
-**Or install from VS Code MCP Extensions:**
-1. Open VS Code
-2. Press `Ctrl+Shift+P`
-3. Type "MCP: Install Server"
-4. Search for "Windows Automation Inspector"
-5. Click Install
+Or install from the VS Code Marketplace — search **"Windows Automation Inspector"**.
 
 ### Claude Desktop
 
-After installing via pip, add to `%APPDATA%\Claude\claude_desktop_config.json`:
+Add to `%APPDATA%\Claude\claude_desktop_config.json`:
 
 ```json
 {
@@ -123,184 +152,256 @@ After installing via pip, add to `%APPDATA%\Claude\claude_desktop_config.json`:
 }
 ```
 
-### Other MCP Clients
+### Any MCP Client
 
-The server uses **STDIO transport** and works with any MCP-compatible client that supports stdio.
+The server uses **STDIO transport** and works with any MCP-compatible client.
+
+---
 
 ## Usage Examples
 
-### Capture Screenshot
+### Smart Automation (Natural Language)
 ```
-"Capture screenshot of the window titled 'Compliance Guard'"
-```
-
-### OCR Text Extraction
-```
-"Extract text from the screen using OCR"
-"OCR the region at x=100, y=100, width=500, height=300"
+"Click the 'Submit' button"
+"Wait for 'Loading complete' to appear, then click 'Continue'"
+"Fill in the 'Username' field with 'admin@example.com'"
+"Take a snapshot of the Chrome window and tell me what you see"
+"Right-click the desktop and show me the menu options"
 ```
 
-### Automate UI Interactions
+### Screen Capture
 ```
-"Click at coordinates (500, 300)"
-"Double-click the button at (450, 250)"
+"Capture a screenshot of the entire screen"
+"Capture the Notepad window as a compressed JPEG at 50% scale"
+"Compare the current screen to this reference image"
+```
+
+### OCR
+```
+"Extract all text from the screen"
+"Get structured OCR data from the region at (100, 200) size 800x600"
+"Read all text in the Chrome window"
+```
+
+### Mouse & Keyboard
+```
+"Click at (500, 300) with the right mouse button"
 "Drag from (100, 100) to (500, 500)"
+"Type 'Hello World' — use clipboard paste for Unicode characters"
+"Press Ctrl+Shift+S"
 ```
 
-### Keyboard Automation
+### Window & Process Management
 ```
-"Type 'Hello World' at the current cursor position"
-"Press Ctrl+C to copy"
-"Execute Alt+F4 to close the window"
-```
-
-### Window Management
-```
-"List all open windows"
-"Focus the window titled 'Visual Studio Code'"
+"List all open windows containing 'Visual Studio'"
 "Maximize the Chrome window"
-"Resize Notepad to 800x600"
-```
-
-### Process Control
-```
-"List all running processes"
-"Show processes containing 'chrome'"
+"Resize Notepad to 800x600 and move it to (0, 0)"
+"Wait for a window titled 'Installation Complete' to appear"
+"List the top 20 processes by memory usage"
 "Kill process with PID 1234"
 ```
 
-## Available Tools
+### Batch Operations
+```
+"Execute this sequence: click (100,100), wait 500ms, type 'hello', press Enter"
+```
 
+---
+
+## All 47 Tools
+
+### Smart Automation
 | Tool | Description |
 |------|-------------|
-| `capture_screen` | Capture full screen screenshot |
-| `capture_window` | Capture specific window by title |
-| `list_windows` | List all open windows with details |
-| `ocr_screen` | Extract text from full screen |
-| `ocr_region` | Extract text from specified region |
-| `click` | Click at coordinates (left/right/middle) |
+| `click_text` | Find text on screen and click it |
+| `find_text_on_screen` | Find all text occurrences with coordinates |
+| `wait_for_text` | Wait until text appears (polling) |
+| `assert_text_visible` | Assert text is/isn't visible |
+| `fill_field` | Click labeled field and type value |
+| `get_window_snapshot` | Screenshot + OCR in one call |
+| `right_click_menu` | Right-click and OCR the menu |
+| `execute_sequence` | Batch up to 50 tool calls |
+
+### Screen Capture
+| Tool | Description |
+|------|-------------|
+| `capture_screen` | Full screen screenshot (PNG/JPEG/WebP) |
+| `capture_window` | Window screenshot with fuzzy title match |
+| `capture_monitor` | Capture specific monitor by index |
+| `list_monitors` | List monitors with resolution and DPI |
+| `get_pixel_color` | Get RGB/hex color at coordinates |
+| `compare_screenshots` | Pixel-level comparison with similarity score |
+
+### OCR
+| Tool | Description |
+|------|-------------|
+| `ocr_screen` | Full screen text extraction |
+| `ocr_region` | Region text extraction |
+| `ocr_window` | Window text extraction |
+| `ocr_screen_structured` | Full screen OCR with bounding boxes |
+| `ocr_region_structured` | Region OCR with bounding boxes |
+
+### Mouse
+| Tool | Description |
+|------|-------------|
+| `click` | Click at coordinates (left/right/middle, N clicks) |
 | `double_click` | Double-click at coordinates |
-| `drag` | Drag from start to end coordinates |
-| `type_text` | Type text at current position |
-| `press_key` | Press keyboard key or shortcut |
-| `hotkey` | Execute hotkey combination |
+| `triple_click` | Triple-click to select line/paragraph |
+| `drag` | Drag from start to end with duration |
+| `mouse_position` | Get current cursor position |
+| `mouse_move` | Move cursor with smooth animation |
+| `scroll` | Vertical scroll at position |
+| `scroll_horizontal` | Horizontal scroll at position |
+
+### Keyboard
+| Tool | Description |
+|------|-------------|
+| `type_text` | Type text (auto Unicode detection, clipboard fallback) |
+| `press_key` | Press key or combo (`ctrl+c`, `alt+f4`) |
+| `hotkey` | Hotkey from key array (`["ctrl","shift","s"]`) |
+
+### Clipboard
+| Tool | Description |
+|------|-------------|
 | `clipboard_copy` | Copy text to clipboard |
-| `clipboard_paste` | Get clipboard content |
-| `mouse_position` | Get current mouse position |
-| `mouse_move` | Move mouse to position |
-| `scroll` | Scroll up/down |
-| `list_processes` | List running processes with PIDs |
-| `kill_process` | Terminate process by PID |
-| `focus_window` | Activate window |
+| `clipboard_paste` | Read clipboard contents |
+
+### Window Management
+| Tool | Description |
+|------|-------------|
+| `list_windows` | List windows with optional title filter |
+| `get_window_info` | Detailed window info (PID, process, memory) |
+| `focus_window` | Bring window to foreground |
 | `close_window` | Close window by title |
 | `minimize_window` | Minimize window |
 | `maximize_window` | Maximize window |
-| `restore_window` | Restore window |
-| `resize_window` | Resize window |
-| `move_window` | Move window position |
+| `restore_window` | Restore from minimized/maximized |
+| `resize_window` | Resize to exact dimensions |
+| `move_window` | Move to exact position |
+| `wait_for_window` | Wait for window to appear (polling) |
+
+### Process Management
+| Tool | Description |
+|------|-------------|
+| `list_processes` | List processes (filter, sort, paginate) |
+| `kill_process` | Terminate process (graceful + force fallback) |
+| `start_process` | Launch application with optional wait |
+| `wait_for_idle` | Wait for process CPU to drop below threshold |
+
+### System
+| Tool | Description |
+|------|-------------|
+| `health_check` | Full dependency and system status report |
+
+---
+
+## Architecture
+
+```
+win32-mcp-server/
+├── win32_mcp_server/
+│   ├── __init__.py              # Package entry, version
+│   ├── __main__.py              # python -m support
+│   ├── config.py                # Dataclass config, PreprocessMode
+│   ├── registry.py              # Decorator-based tool registry + dispatch
+│   ├── server.py                # MCP server, stdio transport, health_check
+│   ├── utils/
+│   │   ├── coordinates.py       # DPI awareness, screen geometry, validation
+│   │   ├── errors.py            # ToolError with suggestions
+│   │   ├── imaging.py           # Image preprocessing, encoding, diffing
+│   │   └── window_match.py      # Fuzzy title matching, deduplication, PID
+│   └── tools/
+│       ├── capture.py           # Screenshot tools (6)
+│       ├── ocr.py               # OCR tools (5)
+│       ├── mouse.py             # Mouse tools (8)
+│       ├── keyboard.py          # Keyboard tools (3)
+│       ├── clipboard.py         # Clipboard tools (2)
+│       ├── window.py            # Window management tools (10)
+│       ├── process.py           # Process management tools (4)
+│       └── smart.py             # Smart automation tools (8)
+├── extension.js                 # VS Code extension bootstrap
+├── package.json                 # VS Code extension manifest
+├── pyproject.toml               # Python package config
+├── server.py                    # Root entry point
+└── LICENSE                      # MIT License
+```
+
+---
 
 ## Security Considerations
 
-**WARNING**: This server has powerful system control capabilities including:
-- Mouse and keyboard control
-- Process termination
-- Clipboard access
-- Screen capture
+> **This server has powerful system control capabilities.** Only use in trusted environments where you control the MCP client.
 
-**Only use in trusted environments** where you control the MCP client.
+The server can:
+- Capture screenshots of any window or the entire desktop
+- Read and write the system clipboard
+- Control mouse and keyboard input
+- Terminate processes
+- Launch applications
 
-### Recommended Security Practices
+### Recommended Practices
 
-1. **Restrict Usage**: Only enable when actively needed
-2. **Review Logs**: Monitor all automated actions
-3. **Sandbox Testing**: Test in isolated environments first
-4. **Access Control**: Limit who can access the MCP client
-5. **Disable PyAutoGUI Failsafe**: Server disables failsafe for automation - be cautious
+1. **Enable only when needed** — disable via VS Code settings when not in use
+2. **Review automation logs** — all tool calls are logged to stderr
+3. **Test in sandboxed environments** first
+4. **Restrict MCP client access** — limit who can invoke the server
+5. **Be aware**: PyAutoGUI failsafe is disabled for uninterrupted automation
+
+---
 
 ## Troubleshooting
 
-### Tesseract Not Found
-```
-TesseractNotFoundError: tesseract is not installed
-```
-**Solution**: Install Tesseract OCR from https://github.com/UB-Mannheim/tesseract/wiki
+| Problem | Solution |
+|---------|----------|
+| `TesseractNotFoundError` | Install from https://github.com/UB-Mannheim/tesseract/wiki and add to PATH |
+| `PermissionError: Access is denied` | Run VS Code / MCP client as Administrator |
+| `ModuleNotFoundError: No module named 'mcp'` | `pip install -e .` or `pip install win32-mcp-server` |
+| `Window not found: [title]` | Use partial title. Run `list_windows` to see exact titles. Fuzzy matching is automatic. |
+| OCR returns empty/garbled text | Try `preprocess: "dark_bg"` or `"high_contrast"` for better results |
+| Coordinates are wrong on HiDPI | The server auto-enables DPI awareness. Run `health_check` to verify DPI settings. |
 
-### Permission Errors
-```
-PermissionError: [WinError 5] Access is denied
-```
-**Solution**: Run VS Code or MCP client as Administrator for process control features
+---
 
-### Module Not Found
-```
-ModuleNotFoundError: No module named 'mcp'
-```
-**Solution**: Reinstall dependencies: `pip install -e .`
+## Dependencies
 
-### Window Not Found
-```
-Window not found: [title]
-```
-**Solution**: Use partial window title matching. Check exact title with `list_windows` first.
+| Package | Purpose |
+|---------|---------|
+| [mcp](https://github.com/modelcontextprotocol/python-sdk) | Model Context Protocol SDK |
+| [mss](https://github.com/BoboTiG/python-mss) | Fast cross-platform screen capture |
+| [Pillow](https://github.com/python-pillow/Pillow) | Image processing and encoding |
+| [NumPy](https://numpy.org/) | Image preprocessing for OCR |
+| [PyAutoGUI](https://github.com/asweigart/pyautogui) | Mouse and keyboard automation |
+| [PyGetWindow](https://github.com/asweigart/PyGetWindow) | Window enumeration and control |
+| [pyperclip](https://github.com/asweigart/pyperclip) | Clipboard operations |
+| [pytesseract](https://github.com/madmaze/pytesseract) | Tesseract OCR wrapper |
+| [psutil](https://github.com/giampaolo/psutil) | Process management |
+| [RapidFuzz](https://github.com/maxbachmann/RapidFuzz) | Fast fuzzy string matching |
 
-## Development
-
-### Project Structure
-```
-win32-mcp-server/
-├── server.py          # Main MCP server implementation
-├── pyproject.toml     # Package configuration
-├── README.md          # This file
-└── LICENSE            # MIT License
-```
-
-### Dependencies
-- **mcp**: Model Context Protocol SDK
-- **mss**: Cross-platform screen capture
-- **Pillow**: Image processing
-- **pyautogui**: Mouse and keyboard automation
-- **pygetwindow**: Window management
-- **pyperclip**: Clipboard operations
-- **pytesseract**: OCR text extraction
-- **psutil**: Process management
-
-## License
-
-MIT License - see LICENSE file
+---
 
 ## Contributing
 
-Contributions welcome! Please:
+Contributions welcome!
+
 1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
+2. Create a feature branch (`git checkout -b feature/my-feature`)
+3. Commit your changes (`git commit -am 'Add my feature'`)
+4. Push to the branch (`git push origin feature/my-feature`)
+5. Open a Pull Request
+
+---
+
+## License
+
+MIT License — see [LICENSE](LICENSE) file.
 
 ## Links
 
 - **Repository**: https://github.com/RandyNorthrup/win32-mcp-server
 - **Issues**: https://github.com/RandyNorthrup/win32-mcp-server/issues
-- **MCP Documentation**: https://modelcontextprotocol.io/
-
-## Support
-
-For bugs and feature requests, please use [GitHub Issues](https://github.com/RandyNorthrup/win32-mcp-server/issues).
-
-## Credits
-
-**Author**: Randy Northrup  
-**GitHub**: [@RandyNorthrup](https://github.com/RandyNorthrup)
-
-Built with Python, MCP SDK, and the following open-source libraries:
-- [mcp](https://github.com/modelcontextprotocol/python-sdk) - Model Context Protocol SDK
-- [mss](https://github.com/BoboTiG/python-mss) - Fast screenshot capture
-- [PyAutoGUI](https://github.com/asweigart/pyautogui) - Mouse and keyboard automation
-- [pygetwindow](https://github.com/asweigart/PyGetWindow) - Window management
-- [pytesseract](https://github.com/madmaze/pytesseract) - OCR wrapper for Tesseract
-- [psutil](https://github.com/giampaolo/psutil) - Process and system utilities
-- [pyperclip](https://github.com/asweigart/pyperclip) - Clipboard operations
-- [Pillow](https://github.com/python-pillow/Pillow) - Image processing
+- **MCP Specification**: https://modelcontextprotocol.io/
 
 ---
 
-**Made for Windows automation and AI agents**
+**Author**: [Randy Northrup](https://github.com/RandyNorthrup)  
+**Built for Windows automation and AI agents**
