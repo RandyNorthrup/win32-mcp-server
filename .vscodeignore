@@ -1,3 +1,17 @@
 node_modules/
 *.vsix
 .vscode-test/
+.git/
+.gitignore
+__pycache__/
+*.pyc
+*.egg-info/
+win32_mcp_server.egg-info/
+dist/
+build/
+PLANNING.md
+MANIFEST.in
+setup.py
+pyproject.toml
+win32_mcp_server/
+server.py

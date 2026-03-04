@@ -5,6 +5,7 @@
 The most comprehensive Windows desktop automation server for the [Model Context Protocol](https://modelcontextprotocol.io/). Give any MCP-compatible AI agent full control over Windows applications: intelligent text finding and clicking, structured OCR, screenshot capture, mouse/keyboard input, window management, process control, and multi-step batch operations — all through a single MCP server.
 
 [![Version](https://img.shields.io/badge/version-2.0.0-blue)](https://github.com/RandyNorthrup/win32-mcp-server/releases)
+[![VS Code Marketplace](https://img.shields.io/badge/VS%20Code-Marketplace-007ACC)](https://marketplace.visualstudio.com/items?itemName=RandyNorthrup.win32-mcp-inspector)
 [![Python](https://img.shields.io/badge/python-3.10%2B-green)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-yellow)](LICENSE)
 [![MCP](https://img.shields.io/badge/MCP-compatible-purple)](https://modelcontextprotocol.io/)
@@ -100,15 +101,16 @@ The most comprehensive Windows desktop automation server for the [Model Context 
 
 ### Install Package
 
-**From PyPI (recommended):**
-```bash
-pip install win32-mcp-server
-```
-
-**From GitHub:**
+**From GitHub (recommended — latest v2.0):**
 ```bash
 pip install git+https://github.com/RandyNorthrup/win32-mcp-server.git
 ```
+
+**From PyPI:**
+```bash
+pip install win32-mcp-server
+```
+> **Note:** PyPI may lag behind the latest GitHub release. For the newest features, install from GitHub.
 
 **From source:**
 ```bash
@@ -398,6 +400,7 @@ MIT License — see [LICENSE](LICENSE) file.
 ## Links
 
 - **Repository**: https://github.com/RandyNorthrup/win32-mcp-server
+- **VS Code Marketplace**: https://marketplace.visualstudio.com/items?itemName=RandyNorthrup.win32-mcp-inspector
 - **Issues**: https://github.com/RandyNorthrup/win32-mcp-server/issues
 - **MCP Specification**: https://modelcontextprotocol.io/
 

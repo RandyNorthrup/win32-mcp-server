@@ -5,12 +5,12 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "win32-mcp-server"
 version = "2.0.0"
-description = "Enterprise-grade Windows automation MCP server for AI agents — 40+ tools including click_text, wait_for_text, structured OCR, and batch operations"
+description = "Enterprise-grade Windows automation MCP server for AI agents — 47 tools including click_text, wait_for_text, structured OCR, and batch operations"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
-    {name = "Randy Northrup", email = "randy@example.com"}
+    {name = "Randy Northrup", email = "randy.northrup@gmail.com"}
 ]
 keywords = ["mcp", "windows", "automation", "ocr", "ai", "ui-testing", "desktop-automation"]
 classifiers = [
