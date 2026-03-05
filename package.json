@@ -1,7 +1,7 @@
 {
   "name": "win32-mcp-inspector",
   "displayName": "Windows Automation Inspector (MCP)",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "publisher": "RandyNorthrup",
   "description": "Enterprise-grade Windows automation MCP server with 47 tools — click_text, wait_for_text, structured OCR, batch operations, and more",
   "categories": [
