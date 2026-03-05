@@ -8,3 +8,4 @@ from . import clipboard # noqa: F401
 from . import window    # noqa: F401
 from . import process   # noqa: F401
 from . import smart     # noqa: F401
+from . import grid      # noqa: F401

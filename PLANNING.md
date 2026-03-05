@@ -417,6 +417,7 @@ The following changes deliver the **most impact with the least effort**:
 4. **Screenshot compression** — 5-10x smaller payloads. Faster round trips.
 5. **Global error handling** — Stops the server from crashing on edge cases.
 6. **Unicode `type_text`** — Basic correctness fix.
+7. **`capture_grid`** — On-screen coordinate grid overlay. Captures the screen with a labelled grid drawn on top so the AI can precisely identify pixel coordinates for clicking, dragging, etc. Adapts to resolution, accounts for DPI/zoom, and uses dual-colour rendering (black outline + magenta/cyan fill + yellow labels on dark badges) for visibility on any background.
 
 ---
 
