@@ -9,7 +9,7 @@ Author: Randy Northrup
 GitHub: https://github.com/RandyNorthrup/win32-mcp-server
 """
 
-__version__ = "2.5.0"
+__version__ = "2.5.1"
 
 from .server import main
 

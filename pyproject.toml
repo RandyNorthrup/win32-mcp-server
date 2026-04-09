@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "win32-mcp-server"
-version = "2.5.0"
+version = "2.5.1"
 description = "Enterprise-grade Windows automation MCP server for AI agents — 53 tools including click_text, wait_for_text, structured OCR, UI Automation, and batch operations"
 readme = "README.md"
 requires-python = ">=3.10"

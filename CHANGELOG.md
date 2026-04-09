@@ -2,6 +2,13 @@
 
 All notable changes to the **Windows Automation Inspector (MCP)** extension will be documented in this file.
 
+## [2.5.1] — 2026-04-09
+
+### Fixed
+- UIA control type mapping: `_get_control_class()` now correctly maps multi-word types (TabItem, CheckBox, RadioButton, ComboBox, etc.) using explicit PascalCase lookup instead of broken `.capitalize()` logic.
+- mss screen capture thread-safety: replaced global singleton with `threading.local()` per-thread instances to fix intermittent `_thread._local srcdc` errors (GDI DCs are thread-affine on Windows).
+- Cleaned up mypy type: ignore comments and removed unused pyproject.toml overrides.
+
 ## [2.5.0] — 2026-04-08
 
 ### Added

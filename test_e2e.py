@@ -24,7 +24,7 @@ async def test():
     result = await registry.dispatch("health_check", {})
     data = json.loads(result[0].text)
     check("returns data", "server_version" in data)
-    check("version is 2.5.0", data.get("server_version") == "2.5.0", data.get("server_version"))
+    check("version is 2.5.1", data.get("server_version") == "2.5.1", data.get("server_version"))
     check("53 tools registered", data.get("registered_tools") == 53, data.get("registered_tools"))
     check("has dependencies", "dependencies" in data)
 

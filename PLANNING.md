@@ -2,8 +2,8 @@
 
 **Author:** Randy Northrup
 **Date:** March 3, 2026
-**Current Version:** 2.5.0
-**Target Version:** 2.5.0
+**Current Version:** 2.5.1
+**Target Version:** 2.5.1
 
 ---
 
