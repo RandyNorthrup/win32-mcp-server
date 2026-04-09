@@ -26,3 +26,4 @@ test_*.py
 # Dev config
 .pre-commit-config.yaml
 @AutomationLog.txt
+_logs/
