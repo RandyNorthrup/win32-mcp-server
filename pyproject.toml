@@ -214,11 +214,6 @@ module = [
 ]
 ignore_missing_imports = true
 
-[[tool.mypy.overrides]]
-module = ["test_e2e", "test_functional", "test_new_features"]
-disallow_untyped_defs = false
-disallow_incomplete_defs = false
-
 # =============================================================================
 # Pytest
 # =============================================================================

@@ -22,43 +22,45 @@ from ..utils.errors import ToolError
 
 logger = logging.getLogger("win32-mcp")
 
-# Control type names that map to uiautomation classes
-_CONTROL_TYPES = {
-    "button",
-    "checkbox",
-    "combobox",
-    "edit",
-    "hyperlink",
-    "list",
-    "listitem",
-    "menu",
-    "menubar",
-    "menuitem",
-    "pane",
-    "radiobutton",
-    "separator",
-    "slider",
-    "tab",
-    "tabitem",
-    "text",
-    "toolbar",
-    "tree",
-    "treeitem",
-    "window",
-    "group",
-    "document",
-    "custom",
-    "dataitem",
-    "datagrid",
-    "header",
-    "headeritem",
-    "scrollbar",
-    "spinner",
-    "statusbar",
-    "table",
-    "titlebar",
-    "tooltip",
+# Map user-friendly lowercase names → uiautomation class name suffix.
+# e.g. "tabitem" → "TabItemControl", "radiobutton" → "RadioButtonControl"
+_CONTROL_TYPE_MAP: dict[str, str] = {
+    "button": "ButtonControl",
+    "checkbox": "CheckBoxControl",
+    "combobox": "ComboBoxControl",
+    "custom": "CustomControl",
+    "datagrid": "DataGridControl",
+    "dataitem": "DataItemControl",
+    "document": "DocumentControl",
+    "edit": "EditControl",
+    "group": "GroupControl",
+    "header": "HeaderControl",
+    "headeritem": "HeaderItemControl",
+    "hyperlink": "HyperlinkControl",
+    "list": "ListControl",
+    "listitem": "ListItemControl",
+    "menu": "MenuControl",
+    "menubar": "MenuBarControl",
+    "menuitem": "MenuItemControl",
+    "pane": "PaneControl",
+    "radiobutton": "RadioButtonControl",
+    "scrollbar": "ScrollBarControl",
+    "separator": "SeparatorControl",
+    "slider": "SliderControl",
+    "spinner": "SpinnerControl",
+    "statusbar": "StatusBarControl",
+    "tab": "TabControl",
+    "tabitem": "TabItemControl",
+    "table": "TableControl",
+    "text": "TextControl",
+    "titlebar": "TitleBarControl",
+    "toolbar": "ToolBarControl",
+    "tooltip": "ToolTipControl",
+    "tree": "TreeControl",
+    "treeitem": "TreeItemControl",
+    "window": "WindowControl",
 }
+_CONTROL_TYPES = set(_CONTROL_TYPE_MAP.keys())
 
 
 def _import_uia() -> Any:
@@ -170,13 +172,16 @@ def _find_window_control(auto: Any, window_title: str) -> Any:
 
 def _get_control_class(auto: Any, control_type: str) -> Any:
     """Get the uiautomation control class for a type name."""
-    # Map user-friendly names to class names
-    class_name = control_type.capitalize() + "Control"
-    cls = getattr(auto, class_name, None)
-    if cls is None:
+    class_name = _CONTROL_TYPE_MAP.get(control_type.lower())
+    if class_name is None:
         raise ToolError(
             f"Unknown control type: '{control_type}'",
             suggestion=f"Valid types: {', '.join(sorted(_CONTROL_TYPES))}",
+        )
+    cls = getattr(auto, class_name, None)
+    if cls is None:
+        raise ToolError(
+            f"Control class '{class_name}' not found in uiautomation library",
         )
     return cls
 
@@ -224,7 +229,7 @@ async def handle_uia_inspect_window(arguments: dict[str, Any]) -> list[TextConte
 
         if filter_type:
             # Flatten and filter
-            target_type = filter_type.capitalize() + "Control"
+            target_type = _CONTROL_TYPE_MAP[filter_type]
             filtered = _collect_by_type(win, target_type, max_depth)
             tree["filtered_controls"] = filtered
             tree["filtered_count"] = len(filtered)

@@ -11,9 +11,7 @@ Tools:
 """
 
 import asyncio
-import atexit
 import base64
-import contextlib
 import io
 import json
 import logging
@@ -35,31 +33,19 @@ logger = logging.getLogger("win32-mcp")
 
 
 # ===================================================================
-# mss Singleton — reuse one instance for all captures
+# mss per-thread instances — GDI device contexts are thread-affine
 # ===================================================================
 
-_mss_lock = threading.Lock()
-_mss_instance = None
+_mss_local = threading.local()
 
 
 def _get_mss() -> Any:
-    """Return a reusable mss instance (thread-safe, lazy init)."""
-    global _mss_instance
-    if _mss_instance is None:
-        with _mss_lock:
-            if _mss_instance is None:
-                _mss_instance = mss()
-                atexit.register(_cleanup_mss)
-    return _mss_instance
-
-
-def _cleanup_mss() -> None:
-    """Clean up the mss singleton at process exit."""
-    global _mss_instance
-    if _mss_instance is not None:
-        with contextlib.suppress(Exception):
-            _mss_instance.close()
-        _mss_instance = None
+    """Return a thread-local mss instance (GDI DCs are thread-affine on Windows)."""
+    inst = getattr(_mss_local, "instance", None)
+    if inst is None:
+        inst = mss()
+        _mss_local.instance = inst
+    return inst
 
 
 # ===================================================================
