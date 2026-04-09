@@ -82,9 +82,17 @@ async def handle_list_windows(arguments: dict[str, Any]) -> list[TextContent]:
     windows = get_all_windows_deduped()
     results = []
 
+    # Also strip punctuation from filter so "SAK" can match "S.A.K."
+    from win32_mcp_server.utils.window_match import _strip_punct
+
+    filter_stripped = _strip_punct(filter_text) if filter_text else ""
+
     for win in windows:
-        if filter_text and filter_text not in win.title.lower():
-            continue
+        if filter_text:
+            title_lower = win.title.lower()
+            title_stripped = _strip_punct(title_lower)
+            if filter_text not in title_lower and filter_stripped not in title_stripped:
+                continue
         try:
             results.append(get_window_details(win))
         except Exception as exc:

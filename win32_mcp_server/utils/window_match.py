@@ -5,6 +5,7 @@ Window matching utilities — fuzzy title matching, deduplication, PID lookup.
 import ctypes
 import ctypes.wintypes
 import logging
+import re
 from typing import Any
 
 import pygetwindow as gw
@@ -16,21 +17,41 @@ logger = logging.getLogger("win32-mcp")
 # ---------------------------------------------------------------------------
 # Fuzzy matching — prefer rapidfuzz, fall back to difflib
 # Case-insensitive in both paths for consistency.
+# Compares both raw and punctuation-stripped versions to handle titles like
+# "S.A.K." matching query "SAK".
 # ---------------------------------------------------------------------------
+
+_PUNCT_RE = re.compile(r"[^\w\s]", re.UNICODE)
+
+
+def _strip_punct(s: str) -> str:
+    """Remove punctuation, keeping letters, digits, and whitespace."""
+    return _PUNCT_RE.sub("", s)
+
 
 try:
     from rapidfuzz import fuzz as _rf_fuzz
 
     def _fuzzy_ratio(s1: str, s2: str) -> int:
-        """Case-insensitive fuzzy match score (0-100)."""
-        return int(_rf_fuzz.partial_ratio(s1.lower(), s2.lower()))
+        """Case-insensitive fuzzy match score (0-100).
+
+        Returns the best score from comparing both raw strings and
+        punctuation-stripped versions so that e.g. "SAK" matches "S.A.K.".
+        """
+        a, b = s1.lower(), s2.lower()
+        raw = int(_rf_fuzz.partial_ratio(a, b))
+        stripped = int(_rf_fuzz.partial_ratio(_strip_punct(a), _strip_punct(b)))
+        return max(raw, stripped)
 
 except ImportError:
     from difflib import SequenceMatcher
 
     def _fuzzy_ratio(s1: str, s2: str) -> int:
         """Case-insensitive fuzzy match score (0-100)."""
-        return int(SequenceMatcher(None, s1.lower(), s2.lower()).ratio() * 100)
+        a, b = s1.lower(), s2.lower()
+        raw = int(SequenceMatcher(None, a, b).ratio() * 100)
+        stripped = int(SequenceMatcher(None, _strip_punct(a), _strip_punct(b)).ratio() * 100)
+        return max(raw, stripped)
 
 
 def _fuzzy_best_matches(query: str, choices: list[str], limit: int = 5) -> list[tuple[str, int]]:
