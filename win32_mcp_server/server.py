@@ -1,9 +1,9 @@
 """
-MCP Server for Windows UI Inspection and Control — v2.0
+MCP Server for Windows UI Inspection and Control - v2.5
 
-Enterprise-grade automation server with 40+ tools for screen capture, OCR,
-mouse/keyboard control, window management, process control, and intelligent
-high-level automation (click_text, wait_for_text, fill_field, etc.).
+Enterprise-grade automation server with 53 tools for screen capture, OCR,
+mouse/keyboard control, window management, process control, UI Automation,
+and intelligent high-level automation (click_text, wait_for_text, fill_field, etc.).
 
 Author: Randy Northrup
 GitHub: https://github.com/RandyNorthrup/win32-mcp-server
@@ -17,7 +17,7 @@ import sys
 from typing import Any
 
 from mcp.server import Server
-from mcp.types import Tool, TextContent, ImageContent
+from mcp.types import ImageContent, TextContent, Tool
 
 from . import __version__
 from .config import config
@@ -38,20 +38,24 @@ logger = logging.getLogger("win32-mcp")
 # Import all tool modules to trigger registration
 # ---------------------------------------------------------------------------
 
-from . import tools  # noqa: F401, E402  — registers all tools
-
+from . import tools  # noqa: F401  — registers all tools
 
 # ---------------------------------------------------------------------------
 # Server-level tools (health_check is registered here)
 # ---------------------------------------------------------------------------
 
-@registry.register("health_check", "Verify all dependencies and report server status", {
-    "type": "object",
-    "properties": {},
-})
-async def handle_health_check(arguments: dict):
+
+@registry.register(
+    "health_check",
+    "Verify all dependencies and report server status",
+    {
+        "type": "object",
+        "properties": {},
+    },
+)
+async def handle_health_check(arguments: dict[str, Any]) -> dict[str, Any]:
+    from .utils.coordinates import get_all_monitors, get_scaling_factor, get_system_dpi
     from .utils.imaging import check_tesseract
-    from .utils.coordinates import get_system_dpi, get_scaling_factor, get_all_monitors
 
     status: dict[str, Any] = {
         "server_version": __version__,
@@ -84,8 +88,18 @@ async def handle_health_check(arguments: dict):
 
     # Dependencies
     deps = {}
-    for mod_name in ["mcp", "mss", "PIL", "pyautogui", "pygetwindow", "pyperclip",
-                      "pytesseract", "psutil", "numpy"]:
+    for mod_name in [
+        "mcp",
+        "mss",
+        "PIL",
+        "pyautogui",
+        "pygetwindow",
+        "pyperclip",
+        "pytesseract",
+        "psutil",
+        "numpy",
+        "uiautomation",
+    ]:
         try:
             mod = __import__(mod_name)
             ver = getattr(mod, "__version__", getattr(mod, "VERSION", "installed"))
@@ -97,6 +111,7 @@ async def handle_health_check(arguments: dict):
     # Rapidfuzz (optional)
     try:
         import rapidfuzz
+
         deps["rapidfuzz"] = rapidfuzz.__version__
     except ImportError:
         deps["rapidfuzz"] = "not installed (using difflib fallback)"
@@ -115,7 +130,7 @@ async def handle_health_check(arguments: dict):
 app = Server("win32-inspector")
 
 
-@app.list_tools()
+@app.list_tools()  # type: ignore[no-untyped-call]
 async def list_tools() -> list[Tool]:
     """Return all registered tool definitions."""
     return registry.get_tools()
@@ -133,7 +148,8 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent | ImageConten
 # Entry Points
 # ---------------------------------------------------------------------------
 
-async def async_main():
+
+async def async_main() -> None:
     """Async entry point — runs the MCP server over stdio."""
     from mcp.server.stdio import stdio_server
 
@@ -147,7 +163,7 @@ async def async_main():
         )
 
 
-def main():
+def main() -> None:
     """Synchronous entry point for console_scripts."""
     try:
         asyncio.run(async_main())

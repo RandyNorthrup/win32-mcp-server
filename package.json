@@ -1,9 +1,9 @@
 {
   "name": "win32-mcp-inspector",
   "displayName": "Windows Automation Inspector (MCP)",
-  "version": "2.1.0",
+  "version": "2.5.0",
   "publisher": "RandyNorthrup",
-  "description": "Enterprise-grade Windows automation MCP server with 47 tools — click_text, wait_for_text, structured OCR, batch operations, and more",
+  "description": "Enterprise-grade Windows automation MCP server with 53 tools — click_text, wait_for_text, structured OCR, UI Automation, and more",
   "categories": [
     "Other"
   ],
@@ -50,6 +50,52 @@
           "type": "boolean",
           "default": true,
           "description": "Automatically install win32-mcp-server Python package if not found"
+        },
+        "win32-mcp.tesseractPath": {
+          "type": "string",
+          "default": "",
+          "description": "Custom path to Tesseract OCR executable (leave empty to use PATH)"
+        },
+        "win32-mcp.ocrLanguage": {
+          "type": "string",
+          "default": "eng",
+          "description": "Default OCR language (e.g. 'eng', 'fra', 'eng+fra')"
+        },
+        "win32-mcp.ocrPreprocess": {
+          "type": "string",
+          "enum": ["auto", "light_bg", "dark_bg", "high_contrast", "none"],
+          "default": "auto",
+          "description": "Default OCR preprocessing mode"
+        },
+        "win32-mcp.screenshotFormat": {
+          "type": "string",
+          "enum": ["png", "jpeg", "webp"],
+          "default": "png",
+          "description": "Default screenshot output format"
+        },
+        "win32-mcp.screenshotQuality": {
+          "type": "number",
+          "default": 85,
+          "minimum": 1,
+          "maximum": 100,
+          "description": "JPEG/WebP quality (1-100)"
+        },
+        "win32-mcp.screenshotScale": {
+          "type": "number",
+          "default": 1.0,
+          "minimum": 0.1,
+          "maximum": 1.0,
+          "description": "Screenshot scale factor (0.1-1.0)"
+        },
+        "win32-mcp.coordinateValidation": {
+          "type": "boolean",
+          "default": true,
+          "description": "Validate click/move coordinates are within screen bounds"
+        },
+        "win32-mcp.debugLogging": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable verbose debug logging"
         }
       }
     }

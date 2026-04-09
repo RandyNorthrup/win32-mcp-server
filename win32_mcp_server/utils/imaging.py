@@ -11,11 +11,12 @@ Handles:
 import base64
 import io
 import logging
+from typing import Any
 
 import numpy as np
 from PIL import Image, ImageFilter, ImageOps
 
-from ..config import PreprocessMode  # noqa: F401 — re-exported for convenience
+from ..config import PreprocessMode
 
 logger = logging.getLogger("win32-mcp")
 
@@ -24,7 +25,8 @@ logger = logging.getLogger("win32-mcp")
 # Screenshot Conversion
 # ---------------------------------------------------------------------------
 
-def mss_to_pil(screenshot) -> Image.Image:
+
+def mss_to_pil(screenshot: Any) -> Image.Image:
     """Convert an mss ScreenShot object to a PIL RGB Image."""
     return Image.frombytes("RGB", screenshot.size, screenshot.bgra, "raw", "BGRX")
 
@@ -32,6 +34,7 @@ def mss_to_pil(screenshot) -> Image.Image:
 # ---------------------------------------------------------------------------
 # OCR Preprocessing
 # ---------------------------------------------------------------------------
+
 
 def preprocess_for_ocr(
     img: Image.Image,
@@ -55,9 +58,11 @@ def preprocess_for_ocr(
     if mode == "auto":
         gray_arr = np.array(img.convert("L"), dtype=np.float64)
         mean_brightness = float(np.mean(gray_arr))
+        std_brightness = float(np.std(gray_arr))
         if mean_brightness < 100:
             mode = "dark_bg"
-        elif mean_brightness > 200:
+        elif mean_brightness > 200 and std_brightness < 30:
+            # Very bright *and* low contrast — text is washed out
             mode = "high_contrast"
         else:
             mode = "light_bg"
@@ -104,6 +109,7 @@ def preprocess_for_ocr(
 # Image Encoding
 # ---------------------------------------------------------------------------
 
+
 def image_to_base64(
     img: Image.Image,
     fmt: str = "png",
@@ -148,6 +154,7 @@ def image_to_base64(
 # Tesseract Detection
 # ---------------------------------------------------------------------------
 
+
 def check_tesseract() -> tuple[bool, str]:
     """Check if Tesseract OCR is installed and reachable.
 
@@ -156,6 +163,7 @@ def check_tesseract() -> tuple[bool, str]:
     """
     try:
         import pytesseract
+
         version = pytesseract.get_tesseract_version()
         return True, str(version)
     except Exception as exc:
@@ -173,11 +181,12 @@ def check_tesseract() -> tuple[bool, str]:
 # Screenshot Diffing
 # ---------------------------------------------------------------------------
 
+
 def compute_image_diff(
     img_a: Image.Image,
     img_b: Image.Image,
     pixel_threshold: int = 30,
-) -> dict:
+) -> dict[str, Any]:
     """Compare two images and return similarity metrics.
 
     Args:
@@ -198,7 +207,7 @@ def compute_image_diff(
 
     # Mean-squared error across all channels
     mse = float(np.mean((arr_a - arr_b) ** 2))
-    similarity = 1.0 - mse / (255.0 ** 2)
+    similarity = 1.0 - mse / (255.0**2)
 
     # Percentage of meaningfully changed pixels
     diff = np.abs(arr_a - arr_b).mean(axis=2)

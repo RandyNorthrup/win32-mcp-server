@@ -14,13 +14,15 @@ Tools:
 
 import asyncio
 import logging
+from typing import Any
 
 import pyautogui
 from mcp.types import TextContent
 
-from ..registry import registry
 from ..config import config
+from ..registry import registry
 from ..utils.coordinates import validate_coordinates
+from ..utils.errors import ToolError
 
 logger = logging.getLogger("win32-mcp")
 
@@ -28,7 +30,7 @@ logger = logging.getLogger("win32-mcp")
 pyautogui.FAILSAFE = False
 
 
-def _validate_if_enabled(x: int, y: int, tool: str):
+def _validate_if_enabled(x: int, y: int, tool: str) -> None:
     if config.validate_coordinates:
         validate_coordinates(x, y, tool)
 
@@ -37,24 +39,29 @@ def _validate_if_enabled(x: int, y: int, tool: str):
 # MCP Tool Handlers
 # ===================================================================
 
-@registry.register("click", "Click at screen coordinates", {
-    "type": "object",
-    "properties": {
-        "x": {"type": "number", "description": "X coordinate"},
-        "y": {"type": "number", "description": "Y coordinate"},
-        "button": {
-            "type": "string",
-            "enum": ["left", "right", "middle"],
-            "description": "Mouse button (default: left)",
+
+@registry.register(
+    "click",
+    "Click at screen coordinates",
+    {
+        "type": "object",
+        "properties": {
+            "x": {"type": "number", "description": "X coordinate"},
+            "y": {"type": "number", "description": "Y coordinate"},
+            "button": {
+                "type": "string",
+                "enum": ["left", "right", "middle"],
+                "description": "Mouse button (default: left)",
+            },
+            "clicks": {
+                "type": "number",
+                "description": "Number of clicks (default: 1)",
+            },
         },
-        "clicks": {
-            "type": "number",
-            "description": "Number of clicks (default: 1)",
-        },
+        "required": ["x", "y"],
     },
-    "required": ["x", "y"],
-})
-async def handle_click(arguments: dict):
+)
+async def handle_click(arguments: dict[str, Any]) -> list[TextContent]:
     x, y = int(arguments["x"]), int(arguments["y"])
     button = arguments.get("button", "left")
     clicks = int(arguments.get("clicks", 1))
@@ -64,26 +71,39 @@ async def handle_click(arguments: dict):
     await asyncio.to_thread(pyautogui.click, x, y, button=button, clicks=clicks)
     await asyncio.sleep(config.automation.click_delay)
 
-    return [TextContent(
-        type="text",
-        text=f"Clicked {button} x{clicks} at ({x}, {y})",
-    )]
+    # Optional post-click verification
+    if arguments.get("verify", False):
+        pos = pyautogui.position()
+        dx, dy = abs(pos.x - x), abs(pos.y - y)
+        if dx > 5 or dy > 5:
+            logger.warning("Click verify: mouse at (%d,%d), expected (%d,%d)", pos.x, pos.y, x, y)
+
+    return [
+        TextContent(
+            type="text",
+            text=f"Clicked {button} x{clicks} at ({x}, {y})",
+        )
+    ]
 
 
-@registry.register("double_click", "Double-click at screen coordinates", {
-    "type": "object",
-    "properties": {
-        "x": {"type": "number", "description": "X coordinate"},
-        "y": {"type": "number", "description": "Y coordinate"},
-        "button": {
-            "type": "string",
-            "enum": ["left", "right", "middle"],
-            "description": "Mouse button (default: left)",
+@registry.register(
+    "double_click",
+    "Double-click at screen coordinates",
+    {
+        "type": "object",
+        "properties": {
+            "x": {"type": "number", "description": "X coordinate"},
+            "y": {"type": "number", "description": "Y coordinate"},
+            "button": {
+                "type": "string",
+                "enum": ["left", "right", "middle"],
+                "description": "Mouse button (default: left)",
+            },
         },
+        "required": ["x", "y"],
     },
-    "required": ["x", "y"],
-})
-async def handle_double_click(arguments: dict):
+)
+async def handle_double_click(arguments: dict[str, Any]) -> list[TextContent]:
     x, y = int(arguments["x"]), int(arguments["y"])
     button = arguments.get("button", "left")
 
@@ -95,15 +115,19 @@ async def handle_double_click(arguments: dict):
     return [TextContent(type="text", text=f"Double-clicked {button} at ({x}, {y})")]
 
 
-@registry.register("triple_click", "Triple-click to select entire line or paragraph", {
-    "type": "object",
-    "properties": {
-        "x": {"type": "number", "description": "X coordinate"},
-        "y": {"type": "number", "description": "Y coordinate"},
+@registry.register(
+    "triple_click",
+    "Triple-click to select entire line or paragraph",
+    {
+        "type": "object",
+        "properties": {
+            "x": {"type": "number", "description": "X coordinate"},
+            "y": {"type": "number", "description": "Y coordinate"},
+        },
+        "required": ["x", "y"],
     },
-    "required": ["x", "y"],
-})
-async def handle_triple_click(arguments: dict):
+)
+async def handle_triple_click(arguments: dict[str, Any]) -> list[TextContent]:
     x, y = int(arguments["x"]), int(arguments["y"])
     _validate_if_enabled(x, y, "triple_click")
 
@@ -113,26 +137,30 @@ async def handle_triple_click(arguments: dict):
     return [TextContent(type="text", text=f"Triple-clicked at ({x}, {y})")]
 
 
-@registry.register("drag", "Drag from start to end coordinates", {
-    "type": "object",
-    "properties": {
-        "start_x": {"type": "number", "description": "Start X coordinate"},
-        "start_y": {"type": "number", "description": "Start Y coordinate"},
-        "end_x": {"type": "number", "description": "End X coordinate"},
-        "end_y": {"type": "number", "description": "End Y coordinate"},
-        "duration": {
-            "type": "number",
-            "description": "Drag duration in seconds (default: 0.5)",
+@registry.register(
+    "drag",
+    "Drag from start to end coordinates",
+    {
+        "type": "object",
+        "properties": {
+            "start_x": {"type": "number", "description": "Start X coordinate"},
+            "start_y": {"type": "number", "description": "Start Y coordinate"},
+            "end_x": {"type": "number", "description": "End X coordinate"},
+            "end_y": {"type": "number", "description": "End Y coordinate"},
+            "duration": {
+                "type": "number",
+                "description": "Drag duration in seconds (default: 0.5)",
+            },
+            "button": {
+                "type": "string",
+                "enum": ["left", "right", "middle"],
+                "description": "Mouse button to hold (default: left)",
+            },
         },
-        "button": {
-            "type": "string",
-            "enum": ["left", "right", "middle"],
-            "description": "Mouse button to hold (default: left)",
-        },
+        "required": ["start_x", "start_y", "end_x", "end_y"],
     },
-    "required": ["start_x", "start_y", "end_x", "end_y"],
-})
-async def handle_drag(arguments: dict):
+)
+async def handle_drag(arguments: dict[str, Any]) -> list[TextContent]:
     sx = int(arguments["start_x"])
     sy = int(arguments["start_y"])
     ex = int(arguments["end_x"])
@@ -143,40 +171,50 @@ async def handle_drag(arguments: dict):
     _validate_if_enabled(sx, sy, "drag start")
     _validate_if_enabled(ex, ey, "drag end")
 
-    def _drag():
+    def _drag() -> None:
         pyautogui.moveTo(sx, sy)
         pyautogui.drag(ex - sx, ey - sy, duration=duration, button=button)
 
     await asyncio.to_thread(_drag)
 
-    return [TextContent(
-        type="text",
-        text=f"Dragged {button} from ({sx}, {sy}) to ({ex}, {ey}) in {duration}s",
-    )]
+    return [
+        TextContent(
+            type="text",
+            text=f"Dragged {button} from ({sx}, {sy}) to ({ex}, {ey}) in {duration}s",
+        )
+    ]
 
 
-@registry.register("mouse_position", "Get current mouse cursor position", {
-    "type": "object",
-    "properties": {},
-})
-async def handle_mouse_position(arguments: dict):
+@registry.register(
+    "mouse_position",
+    "Get current mouse cursor position",
+    {
+        "type": "object",
+        "properties": {},
+    },
+)
+async def handle_mouse_position(arguments: dict[str, Any]) -> dict[str, int]:
     pos = pyautogui.position()
     return {"x": pos.x, "y": pos.y}
 
 
-@registry.register("mouse_move", "Move mouse cursor to position", {
-    "type": "object",
-    "properties": {
-        "x": {"type": "number", "description": "Target X coordinate"},
-        "y": {"type": "number", "description": "Target Y coordinate"},
-        "duration": {
-            "type": "number",
-            "description": "Movement duration in seconds (default: 0.25)",
+@registry.register(
+    "mouse_move",
+    "Move mouse cursor to position",
+    {
+        "type": "object",
+        "properties": {
+            "x": {"type": "number", "description": "Target X coordinate"},
+            "y": {"type": "number", "description": "Target Y coordinate"},
+            "duration": {
+                "type": "number",
+                "description": "Movement duration in seconds (default: 0.25)",
+            },
         },
+        "required": ["x", "y"],
     },
-    "required": ["x", "y"],
-})
-async def handle_mouse_move(arguments: dict):
+)
+async def handle_mouse_move(arguments: dict[str, Any]) -> list[TextContent]:
     x, y = int(arguments["x"]), int(arguments["y"])
     duration = arguments.get("duration", config.automation.move_duration)
 
@@ -187,22 +225,32 @@ async def handle_mouse_move(arguments: dict):
     return [TextContent(type="text", text=f"Moved mouse to ({x}, {y})")]
 
 
-@registry.register("scroll", "Scroll vertically at current or specified position", {
-    "type": "object",
-    "properties": {
-        "amount": {
-            "type": "number",
-            "description": "Scroll amount. Positive=up, negative=down.",
+@registry.register(
+    "scroll",
+    "Scroll vertically at current or specified position",
+    {
+        "type": "object",
+        "properties": {
+            "amount": {
+                "type": "number",
+                "description": "Scroll amount. Positive=up, negative=down.",
+            },
+            "x": {"type": "number", "description": "Optional X coordinate to scroll at"},
+            "y": {"type": "number", "description": "Optional Y coordinate to scroll at"},
         },
-        "x": {"type": "number", "description": "Optional X coordinate to scroll at"},
-        "y": {"type": "number", "description": "Optional Y coordinate to scroll at"},
+        "required": ["amount"],
     },
-    "required": ["amount"],
-})
-async def handle_scroll(arguments: dict):
+)
+async def handle_scroll(arguments: dict[str, Any]) -> list[TextContent]:
     amount = int(arguments["amount"])
     x = arguments.get("x")
     y = arguments.get("y")
+
+    if (x is None) != (y is None):
+        raise ToolError(
+            "Both x and y must be provided for positional scrolling, or neither",
+            suggestion="Provide both x and y coordinates, or omit both to scroll at current position",
+        )
 
     if x is not None and y is not None:
         ix, iy = int(x), int(y)
@@ -217,22 +265,32 @@ async def handle_scroll(arguments: dict):
     return [TextContent(type="text", text=f"Scrolled {direction} {abs(amount)}{pos_text}")]
 
 
-@registry.register("scroll_horizontal", "Scroll horizontally at current or specified position", {
-    "type": "object",
-    "properties": {
-        "amount": {
-            "type": "number",
-            "description": "Scroll amount. Positive=right, negative=left.",
+@registry.register(
+    "scroll_horizontal",
+    "Scroll horizontally at current or specified position",
+    {
+        "type": "object",
+        "properties": {
+            "amount": {
+                "type": "number",
+                "description": "Scroll amount. Positive=right, negative=left.",
+            },
+            "x": {"type": "number", "description": "Optional X coordinate to scroll at"},
+            "y": {"type": "number", "description": "Optional Y coordinate to scroll at"},
         },
-        "x": {"type": "number", "description": "Optional X coordinate to scroll at"},
-        "y": {"type": "number", "description": "Optional Y coordinate to scroll at"},
+        "required": ["amount"],
     },
-    "required": ["amount"],
-})
-async def handle_scroll_horizontal(arguments: dict):
+)
+async def handle_scroll_horizontal(arguments: dict[str, Any]) -> list[TextContent]:
     amount = int(arguments["amount"])
     x = arguments.get("x")
     y = arguments.get("y")
+
+    if (x is None) != (y is None):
+        raise ToolError(
+            "Both x and y must be provided for positional scrolling, or neither",
+            suggestion="Provide both x and y coordinates, or omit both to scroll at current position",
+        )
 
     if x is not None and y is not None:
         ix, iy = int(x), int(y)

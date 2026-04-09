@@ -1,10 +1,10 @@
 # Win32 MCP Server
 
-**Enterprise-grade Windows automation for AI agents — 47 tools over MCP**
+**Enterprise-grade Windows automation for AI agents — 53 tools over MCP**
 
 The most comprehensive Windows desktop automation server for the [Model Context Protocol](https://modelcontextprotocol.io/). Give any MCP-compatible AI agent full control over Windows applications: intelligent text finding and clicking, structured OCR, screenshot capture, mouse/keyboard input, window management, process control, and multi-step batch operations — all through a single MCP server.
 
-[![Version](https://img.shields.io/badge/version-2.0.0-blue)](https://github.com/RandyNorthrup/win32-mcp-server/releases)
+[![Version](https://img.shields.io/badge/version-2.5.0-blue)](https://github.com/RandyNorthrup/win32-mcp-server/releases)
 [![VS Code Marketplace](https://img.shields.io/badge/VS%20Code-Marketplace-007ACC)](https://marketplace.visualstudio.com/items?itemName=RandyNorthrup.win32-mcp-inspector)
 [![Python](https://img.shields.io/badge/python-3.10%2B-green)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-yellow)](LICENSE)
@@ -14,8 +14,9 @@ The most comprehensive Windows desktop automation server for the [Model Context 
 
 ## What's New in v2.0
 
-- **47 tools** (up from 25) — fully modular, enterprise-quality architecture
+- **53 tools** (up from 25) — fully modular, enterprise-quality architecture
 - **Smart automation tools** — `click_text`, `wait_for_text`, `fill_field`, `execute_sequence`, and more
+- **UI Automation API** — inspect control trees, click controls by name, read/set values without coordinates
 - **Structured OCR** — bounding boxes, confidence scores, and screen coordinates for every word
 - **Fuzzy window matching** — find windows by partial title with intelligent suggestions
 - **DPI-aware coordinates** — automatic per-monitor DPI awareness for high-resolution displays
@@ -86,6 +87,14 @@ The most comprehensive Windows desktop automation server for the [Model Context 
 
 ### System (1 tool)
 - `health_check` — verify all dependencies, DPI, monitors, Tesseract, and tool count
+
+### UI Automation (6 tools)
+- `uia_inspect_window` — get the control tree of a window
+- `uia_find_control` — find controls by type, name, or automation ID
+- `uia_click_control` — click a control by name (more reliable than coordinates)
+- `uia_get_control_value` — read a control's value or text
+- `uia_set_control_value` — set a control's value (edit boxes, etc.)
+- `uia_get_focused` — get info about the currently focused control
 
 ---
 
@@ -210,7 +219,7 @@ The server uses **STDIO transport** and works with any MCP-compatible client.
 
 ---
 
-## All 47 Tools
+## All 53 Tools
 
 ### Smart Automation
 | Tool | Description |
@@ -295,6 +304,16 @@ The server uses **STDIO transport** and works with any MCP-compatible client.
 |------|-------------|
 | `health_check` | Full dependency and system status report |
 
+### UI Automation
+| Tool | Description |
+|------|-------------|
+| `uia_inspect_window` | Inspect control tree (buttons, edits, etc.) |
+| `uia_find_control` | Find controls by name, automation ID, or type |
+| `uia_click_control` | Click a control by name (no coordinates needed) |
+| `uia_get_control_value` | Read a control's value/text |
+| `uia_set_control_value` | Set a control's value |
+| `uia_get_focused` | Get info about the focused control |
+
 ---
 
 ## Architecture
@@ -320,7 +339,8 @@ win32-mcp-server/
 │       ├── clipboard.py         # Clipboard tools (2)
 │       ├── window.py            # Window management tools (10)
 │       ├── process.py           # Process management tools (4)
-│       └── smart.py             # Smart automation tools (8)
+│       ├── smart.py             # Smart automation tools (8)
+│       └── uia.py               # UI Automation API tools (6)
 ├── extension.js                 # VS Code extension bootstrap
 ├── package.json                 # VS Code extension manifest
 ├── pyproject.toml               # Python package config
@@ -406,5 +426,5 @@ MIT License — see [LICENSE](LICENSE) file.
 
 ---
 
-**Author**: [Randy Northrup](https://github.com/RandyNorthrup)  
+**Author**: [Randy Northrup](https://github.com/RandyNorthrup)
 **Built for Windows automation and AI agents**

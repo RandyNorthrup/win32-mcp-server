@@ -9,39 +9,44 @@ Tools:
 
 import asyncio
 import logging
+from typing import Any
 
 import pyautogui
 import pyperclip
 from mcp.types import TextContent
 
-from ..registry import registry
 from ..config import config
+from ..registry import registry
 from ..utils.errors import ToolError
 
 logger = logging.getLogger("win32-mcp")
 
 
-@registry.register("type_text", "Type text at current cursor position (supports Unicode)", {
-    "type": "object",
-    "properties": {
-        "text": {"type": "string", "description": "Text to type"},
-        "interval": {
-            "type": "number",
-            "description": "Seconds between keystrokes (default: 0.01)",
+@registry.register(
+    "type_text",
+    "Type text at current cursor position (supports Unicode)",
+    {
+        "type": "object",
+        "properties": {
+            "text": {"type": "string", "description": "Text to type"},
+            "interval": {
+                "type": "number",
+                "description": "Seconds between keystrokes (default: 0.01)",
+            },
+            "method": {
+                "type": "string",
+                "enum": ["auto", "type", "paste"],
+                "description": (
+                    "Typing method. 'type'=keystrokes (ASCII only), "
+                    "'paste'=clipboard paste (any text), "
+                    "'auto'=type if ASCII, paste if Unicode (default: auto)"
+                ),
+            },
         },
-        "method": {
-            "type": "string",
-            "enum": ["auto", "type", "paste"],
-            "description": (
-                "Typing method. 'type'=keystrokes (ASCII only), "
-                "'paste'=clipboard paste (any text), "
-                "'auto'=type if ASCII, paste if Unicode (default: auto)"
-            ),
-        },
+        "required": ["text"],
     },
-    "required": ["text"],
-})
-async def handle_type_text(arguments: dict):
+)
+async def handle_type_text(arguments: dict[str, Any]) -> list[TextContent]:
     text = arguments["text"]
     interval = arguments.get("interval", config.automation.type_interval)
     method = arguments.get("method", "auto")
@@ -50,16 +55,14 @@ async def handle_type_text(arguments: dict):
         raise ToolError("Empty text — nothing to type")
 
     # Decide method
-    use_paste = (
-        method == "paste"
-        or (method == "auto" and not text.isascii())
-    )
+    use_paste = method == "paste" or (method == "auto" and not text.isascii())
 
     if use_paste:
         # Save current clipboard, paste text, restore
         try:
             old_clipboard = pyperclip.paste()
-        except Exception:
+        except Exception as exc:
+            logger.debug("Could not read clipboard: %s", exc)
             old_clipboard = ""
 
         pyperclip.copy(text)
@@ -70,29 +73,31 @@ async def handle_type_text(arguments: dict):
         # Restore previous clipboard
         try:
             pyperclip.copy(old_clipboard)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Could not restore clipboard: %s", exc)
 
         return [TextContent(type="text", text=f"Typed (pasted): {text[:200]}")]
-    else:
-        await asyncio.to_thread(pyautogui.write, text, interval=interval)
-        return [TextContent(type="text", text=f"Typed: {text[:200]}")]
+    await asyncio.to_thread(pyautogui.write, text, interval=interval)
+    return [TextContent(type="text", text=f"Typed: {text[:200]}")]
 
 
-@registry.register("press_key", "Press a keyboard key or key combination", {
-    "type": "object",
-    "properties": {
-        "keys": {
-            "type": "string",
-            "description": (
-                "Key name or combo separated by '+'. "
-                "Examples: 'enter', 'tab', 'ctrl+c', 'alt+f4', 'ctrl+shift+s'"
-            ),
+@registry.register(
+    "press_key",
+    "Press a keyboard key or key combination",
+    {
+        "type": "object",
+        "properties": {
+            "keys": {
+                "type": "string",
+                "description": (
+                    "Key name or combo separated by '+'. Examples: 'enter', 'tab', 'ctrl+c', 'alt+f4', 'ctrl+shift+s'"
+                ),
+            },
         },
+        "required": ["keys"],
     },
-    "required": ["keys"],
-})
-async def handle_press_key(arguments: dict):
+)
+async def handle_press_key(arguments: dict[str, Any]) -> list[TextContent]:
     keys_raw = arguments["keys"].strip()
     if not keys_raw:
         raise ToolError("Empty key string")
@@ -110,18 +115,22 @@ async def handle_press_key(arguments: dict):
     return [TextContent(type="text", text=f"Pressed: {keys_raw}")]
 
 
-@registry.register("hotkey", "Execute a hotkey combination from an array of key names", {
-    "type": "object",
-    "properties": {
-        "keys": {
-            "type": "array",
-            "items": {"type": "string"},
-            "description": "Array of key names, e.g. ['ctrl', 'shift', 's']",
+@registry.register(
+    "hotkey",
+    "Execute a hotkey combination from an array of key names",
+    {
+        "type": "object",
+        "properties": {
+            "keys": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Array of key names, e.g. ['ctrl', 'shift', 's']",
+            },
         },
+        "required": ["keys"],
     },
-    "required": ["keys"],
-})
-async def handle_hotkey(arguments: dict):
+)
+async def handle_hotkey(arguments: dict[str, Any]) -> list[TextContent]:
     keys = arguments["keys"]
     if not keys:
         raise ToolError("Empty key list")

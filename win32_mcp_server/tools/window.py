@@ -18,11 +18,12 @@ import asyncio
 import json
 import logging
 import time
+from typing import Any
 
 from mcp.types import TextContent
 
-from ..registry import registry
 from ..config import config
+from ..registry import registry
 from ..utils.errors import ToolError
 from ..utils.window_match import (
     find_window,
@@ -38,7 +39,8 @@ logger = logging.getLogger("win32-mcp")
 # Retry helper for window operations
 # ===================================================================
 
-async def _retry_window_op(op_name: str, func, *args, **kwargs):
+
+async def _retry_window_op(op_name: str, func: Any, *args: Any, **kwargs: Any) -> Any:
     """Retry a window operation with exponential backoff."""
     last_exc = None
     for attempt in range(config.window_retry_attempts):
@@ -60,16 +62,21 @@ async def _retry_window_op(op_name: str, func, *args, **kwargs):
 # MCP Tool Handlers
 # ===================================================================
 
-@registry.register("list_windows", "List all open windows with position, size, and state", {
-    "type": "object",
-    "properties": {
-        "filter": {
-            "type": "string",
-            "description": "Optional text filter — only windows whose title contains this text",
+
+@registry.register(
+    "list_windows",
+    "List all open windows with position, size, and state",
+    {
+        "type": "object",
+        "properties": {
+            "filter": {
+                "type": "string",
+                "description": "Optional text filter — only windows whose title contains this text",
+            },
         },
     },
-})
-async def handle_list_windows(arguments: dict):
+)
+async def handle_list_windows(arguments: dict[str, Any]) -> list[TextContent]:
     filter_text = arguments.get("filter", "").lower().strip()
 
     windows = get_all_windows_deduped()
@@ -80,24 +87,36 @@ async def handle_list_windows(arguments: dict):
             continue
         try:
             results.append(get_window_details(win))
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Could not get details for window '%s': %s", win.title, exc)
 
-    return [TextContent(type="text", text=json.dumps({
-        "count": len(results),
-        "filter": filter_text or None,
-        "windows": results,
-    }, indent=2))]
+    return [
+        TextContent(
+            type="text",
+            text=json.dumps(
+                {
+                    "count": len(results),
+                    "filter": filter_text or None,
+                    "windows": results,
+                },
+                indent=2,
+            ),
+        )
+    ]
 
 
-@registry.register("get_window_info", "Get detailed information about a specific window", {
-    "type": "object",
-    "properties": {
-        "window_title": {"type": "string", "description": "Full or partial window title"},
+@registry.register(
+    "get_window_info",
+    "Get detailed information about a specific window",
+    {
+        "type": "object",
+        "properties": {
+            "window_title": {"type": "string", "description": "Full or partial window title"},
+        },
+        "required": ["window_title"],
     },
-    "required": ["window_title"],
-})
-async def handle_get_window_info(arguments: dict):
+)
+async def handle_get_window_info(arguments: dict[str, Any]) -> dict[str, Any]:
     win = find_window_strict(arguments["window_title"])
     details = get_window_details(win)
 
@@ -105,25 +124,30 @@ async def handle_get_window_info(arguments: dict):
     if details.get("pid"):
         try:
             import psutil
+
             proc = psutil.Process(details["pid"])
             details["process_name"] = proc.name()
             details["process_exe"] = proc.exe()
             details["memory_mb"] = round(proc.memory_info().rss / 1024 / 1024, 1)
             details["cpu_percent"] = proc.cpu_percent(interval=0.1)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Could not get process info for PID %s: %s", details.get("pid"), exc)
 
     return details
 
 
-@registry.register("focus_window", "Bring a window to the foreground and activate it", {
-    "type": "object",
-    "properties": {
-        "window_title": {"type": "string", "description": "Full or partial window title"},
+@registry.register(
+    "focus_window",
+    "Bring a window to the foreground and activate it",
+    {
+        "type": "object",
+        "properties": {
+            "window_title": {"type": "string", "description": "Full or partial window title"},
+        },
+        "required": ["window_title"],
     },
-    "required": ["window_title"],
-})
-async def handle_focus_window(arguments: dict):
+)
+async def handle_focus_window(arguments: dict[str, Any]) -> list[TextContent]:
     win = find_window_strict(arguments["window_title"])
 
     if win.isMinimized:
@@ -133,72 +157,104 @@ async def handle_focus_window(arguments: dict):
     await _retry_window_op("activate", win.activate)
     await asyncio.sleep(0.2)
 
+    # Verify focus if requested
+    if arguments.get("verify", False):
+        import pygetwindow as gw
+
+        fg = gw.getActiveWindow()
+        if fg is None or fg.title != win.title:
+            logger.warning(
+                "Focus verify: foreground is '%s', expected '%s'",
+                fg.title if fg else "<none>",
+                win.title,
+            )
+
     return [TextContent(type="text", text=f"Focused: {win.title}")]
 
 
-@registry.register("close_window", "Close a window by title", {
-    "type": "object",
-    "properties": {
-        "window_title": {"type": "string", "description": "Full or partial window title"},
+@registry.register(
+    "close_window",
+    "Close a window by title",
+    {
+        "type": "object",
+        "properties": {
+            "window_title": {"type": "string", "description": "Full or partial window title"},
+        },
+        "required": ["window_title"],
     },
-    "required": ["window_title"],
-})
-async def handle_close_window(arguments: dict):
+)
+async def handle_close_window(arguments: dict[str, Any]) -> list[TextContent]:
     win = find_window_strict(arguments["window_title"])
     title = win.title
     await _retry_window_op("close", win.close)
     return [TextContent(type="text", text=f"Closed: {title}")]
 
 
-@registry.register("minimize_window", "Minimize a window", {
-    "type": "object",
-    "properties": {
-        "window_title": {"type": "string", "description": "Full or partial window title"},
+@registry.register(
+    "minimize_window",
+    "Minimize a window",
+    {
+        "type": "object",
+        "properties": {
+            "window_title": {"type": "string", "description": "Full or partial window title"},
+        },
+        "required": ["window_title"],
     },
-    "required": ["window_title"],
-})
-async def handle_minimize_window(arguments: dict):
+)
+async def handle_minimize_window(arguments: dict[str, Any]) -> list[TextContent]:
     win = find_window_strict(arguments["window_title"])
     await _retry_window_op("minimize", win.minimize)
     return [TextContent(type="text", text=f"Minimized: {win.title}")]
 
 
-@registry.register("maximize_window", "Maximize a window", {
-    "type": "object",
-    "properties": {
-        "window_title": {"type": "string", "description": "Full or partial window title"},
+@registry.register(
+    "maximize_window",
+    "Maximize a window",
+    {
+        "type": "object",
+        "properties": {
+            "window_title": {"type": "string", "description": "Full or partial window title"},
+        },
+        "required": ["window_title"],
     },
-    "required": ["window_title"],
-})
-async def handle_maximize_window(arguments: dict):
+)
+async def handle_maximize_window(arguments: dict[str, Any]) -> list[TextContent]:
     win = find_window_strict(arguments["window_title"])
     await _retry_window_op("maximize", win.maximize)
     return [TextContent(type="text", text=f"Maximized: {win.title}")]
 
 
-@registry.register("restore_window", "Restore a window from minimized or maximized state", {
-    "type": "object",
-    "properties": {
-        "window_title": {"type": "string", "description": "Full or partial window title"},
+@registry.register(
+    "restore_window",
+    "Restore a window from minimized or maximized state",
+    {
+        "type": "object",
+        "properties": {
+            "window_title": {"type": "string", "description": "Full or partial window title"},
+        },
+        "required": ["window_title"],
     },
-    "required": ["window_title"],
-})
-async def handle_restore_window(arguments: dict):
+)
+async def handle_restore_window(arguments: dict[str, Any]) -> list[TextContent]:
     win = find_window_strict(arguments["window_title"])
     await _retry_window_op("restore", win.restore)
     return [TextContent(type="text", text=f"Restored: {win.title}")]
 
 
-@registry.register("resize_window", "Resize a window to specified dimensions", {
-    "type": "object",
-    "properties": {
-        "window_title": {"type": "string", "description": "Full or partial window title"},
-        "width": {"type": "number", "description": "New width in pixels"},
-        "height": {"type": "number", "description": "New height in pixels"},
+@registry.register(
+    "resize_window",
+    "Resize a window to specified dimensions",
+    {
+        "type": "object",
+        "properties": {
+            "window_title": {"type": "string", "description": "Full or partial window title"},
+            "width": {"type": "number", "description": "New width in pixels"},
+            "height": {"type": "number", "description": "New height in pixels"},
+        },
+        "required": ["window_title", "width", "height"],
     },
-    "required": ["window_title", "width", "height"],
-})
-async def handle_resize_window(arguments: dict):
+)
+async def handle_resize_window(arguments: dict[str, Any]) -> list[TextContent]:
     win = find_window_strict(arguments["window_title"])
     w, h = int(arguments["width"]), int(arguments["height"])
 
@@ -212,16 +268,20 @@ async def handle_resize_window(arguments: dict):
     return [TextContent(type="text", text=f"Resized '{win.title}' to {w}x{h}")]
 
 
-@registry.register("move_window", "Move a window to specified screen position", {
-    "type": "object",
-    "properties": {
-        "window_title": {"type": "string", "description": "Full or partial window title"},
-        "x": {"type": "number", "description": "New X position"},
-        "y": {"type": "number", "description": "New Y position"},
+@registry.register(
+    "move_window",
+    "Move a window to specified screen position",
+    {
+        "type": "object",
+        "properties": {
+            "window_title": {"type": "string", "description": "Full or partial window title"},
+            "x": {"type": "number", "description": "New X position"},
+            "y": {"type": "number", "description": "New Y position"},
+        },
+        "required": ["window_title", "x", "y"],
     },
-    "required": ["window_title", "x", "y"],
-})
-async def handle_move_window(arguments: dict):
+)
+async def handle_move_window(arguments: dict[str, Any]) -> list[TextContent]:
     win = find_window_strict(arguments["window_title"])
     x, y = int(arguments["x"]), int(arguments["y"])
 
@@ -229,25 +289,29 @@ async def handle_move_window(arguments: dict):
     return [TextContent(type="text", text=f"Moved '{win.title}' to ({x}, {y})")]
 
 
-@registry.register("wait_for_window", "Wait for a window with a matching title to appear", {
-    "type": "object",
-    "properties": {
-        "window_title": {
-            "type": "string",
-            "description": "Full or partial window title to wait for",
+@registry.register(
+    "wait_for_window",
+    "Wait for a window with a matching title to appear",
+    {
+        "type": "object",
+        "properties": {
+            "window_title": {
+                "type": "string",
+                "description": "Full or partial window title to wait for",
+            },
+            "timeout_seconds": {
+                "type": "number",
+                "description": "Maximum time to wait in seconds (default: 10)",
+            },
+            "poll_interval": {
+                "type": "number",
+                "description": "Seconds between checks (default: 0.5)",
+            },
         },
-        "timeout_seconds": {
-            "type": "number",
-            "description": "Maximum time to wait in seconds (default: 10)",
-        },
-        "poll_interval": {
-            "type": "number",
-            "description": "Seconds between checks (default: 0.5)",
-        },
+        "required": ["window_title"],
     },
-    "required": ["window_title"],
-})
-async def handle_wait_for_window(arguments: dict):
+)
+async def handle_wait_for_window(arguments: dict[str, Any]) -> dict[str, Any]:
     title = arguments["window_title"]
     timeout = arguments.get("timeout_seconds", config.default_timeout)
     interval = arguments.get("poll_interval", 0.5)

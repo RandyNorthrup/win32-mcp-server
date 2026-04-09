@@ -2,6 +2,8 @@
 Error types and structured error responses.
 """
 
+from typing import Any
+
 
 class ToolError(Exception):
     """Raised when a tool encounters a known, actionable error.
@@ -14,7 +16,7 @@ class ToolError(Exception):
         super().__init__(message)
         self.suggestion = suggestion
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         d = {"error": True, "message": str(self)}
         if self.suggestion:
             d["suggestion"] = self.suggestion

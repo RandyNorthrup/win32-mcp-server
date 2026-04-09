@@ -8,6 +8,7 @@ operations use physical pixels.
 import ctypes
 import ctypes.wintypes
 import logging
+from typing import Any
 
 from mss import mss
 
@@ -20,6 +21,7 @@ logger = logging.getLogger("win32-mcp")
 # DPI Awareness
 # ---------------------------------------------------------------------------
 
+
 def setup_dpi_awareness() -> bool:
     """Enable per-monitor DPI awareness. Call once at startup.
 
@@ -31,7 +33,7 @@ def setup_dpi_awareness() -> bool:
         logger.info("Per-monitor DPI awareness enabled")
         return True
     except Exception:
-        pass
+        logger.debug("SetProcessDpiAwareness failed, trying fallback")
     try:
         ctypes.windll.user32.SetProcessDPIAware()
         logger.info("System-level DPI awareness enabled")
@@ -44,12 +46,13 @@ def setup_dpi_awareness() -> bool:
 def get_system_dpi() -> int:
     """Return the system DPI (96 = 100% scaling)."""
     try:
-        return ctypes.windll.user32.GetDpiForSystem()
+        result: int = ctypes.windll.user32.GetDpiForSystem()
+        return result
     except Exception:
         # Fallback: query DC
         try:
             hdc = ctypes.windll.user32.GetDC(0)
-            dpi = ctypes.windll.gdi32.GetDeviceCaps(hdc, 88)  # LOGPIXELSX
+            dpi: int = ctypes.windll.gdi32.GetDeviceCaps(hdc, 88)  # LOGPIXELSX
             ctypes.windll.user32.ReleaseDC(0, hdc)
             return dpi
         except Exception:
@@ -65,6 +68,7 @@ def get_scaling_factor() -> float:
 # Screen Geometry
 # ---------------------------------------------------------------------------
 
+
 def get_primary_screen_size() -> tuple[int, int]:
     """Return (width, height) of the primary monitor."""
     with mss() as sct:
@@ -79,25 +83,28 @@ def get_virtual_screen_size() -> tuple[int, int]:
         return m["width"], m["height"]
 
 
-def get_all_monitors() -> list[dict]:
+def get_all_monitors() -> list[dict[str, Any]]:
     """Return a list of monitor dicts with position, size, and index."""
     with mss() as sct:
         monitors = []
         for i, m in enumerate(sct.monitors[1:], start=1):
-            monitors.append({
-                "index": i,
-                "x": m["left"],
-                "y": m["top"],
-                "width": m["width"],
-                "height": m["height"],
-                "is_primary": i == 1,
-            })
+            monitors.append(
+                {
+                    "index": i,
+                    "x": m["left"],
+                    "y": m["top"],
+                    "width": m["width"],
+                    "height": m["height"],
+                    "is_primary": i == 1,
+                }
+            )
         return monitors
 
 
 # ---------------------------------------------------------------------------
 # Coordinate Validation
 # ---------------------------------------------------------------------------
+
 
 def validate_coordinates(x: int, y: int, context: str = "operation") -> None:
     """Raise ToolError if (x, y) is outside any monitor bounds.
@@ -113,8 +120,7 @@ def validate_coordinates(x: int, y: int, context: str = "operation") -> None:
 
     if x < min_x or x >= max_x or y < min_y or y >= max_y:
         raise ToolError(
-            f"Coordinates ({x}, {y}) are outside screen bounds "
-            f"({min_x},{min_y})–({max_x},{max_y}) for {context}",
+            f"Coordinates ({x}, {y}) are outside screen bounds ({min_x},{min_y})-({max_x},{max_y}) for {context}",
             suggestion="Use capture_screen or list_monitors to check screen dimensions",
         )
 
@@ -140,6 +146,41 @@ def validate_region(x: int, y: int, width: int, height: int) -> tuple[int, int, 
     if y + height > max_y:
         height = max_y - y
     return x, y, max(1, width), max(1, height)
+
+
+# ---------------------------------------------------------------------------
+# Rectangle Clamping (multi-monitor safe)
+# ---------------------------------------------------------------------------
+
+
+def clamp_rect_to_virtual_screen(
+    x: int,
+    y: int,
+    width: int,
+    height: int,
+) -> tuple[int, int, int, int]:
+    """Clamp a rectangle to the virtual screen bounds.
+
+    Handles multi-monitor setups where coordinates can be negative
+    (e.g., monitors to the left of or above the primary).
+
+    Returns:
+        (clamped_x, clamped_y, clamped_width, clamped_height)
+        Width/height will be 0 if entirely off-screen.
+    """
+    with mss() as sct:
+        virt = sct.monitors[0]
+        min_x = virt["left"]
+        min_y = virt["top"]
+        max_x = min_x + virt["width"]
+        max_y = min_y + virt["height"]
+
+    clamped_x = max(min_x, x)
+    clamped_y = max(min_y, y)
+    clamped_w = min(max_x, x + width) - clamped_x
+    clamped_h = min(max_y, y + height) - clamped_y
+
+    return clamped_x, clamped_y, max(0, clamped_w), max(0, clamped_h)
 
 
 # ---------------------------------------------------------------------------

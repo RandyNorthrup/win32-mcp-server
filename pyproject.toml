@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "win32-mcp-server"
-version = "2.0.0"
-description = "Enterprise-grade Windows automation MCP server for AI agents — 47 tools including click_text, wait_for_text, structured OCR, and batch operations"
+version = "2.5.0"
+description = "Enterprise-grade Windows automation MCP server for AI agents — 53 tools including click_text, wait_for_text, structured OCR, UI Automation, and batch operations"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
@@ -38,6 +38,7 @@ dependencies = [
     "psutil>=5.9.0",
     "numpy>=1.24.0",
     "rapidfuzz>=3.0.0",
+    "uiautomation>=2.0.0",
 ]
 
 [project.urls]
@@ -55,5 +56,173 @@ win32-inspector = "win32_mcp_server:main"
 [tool.setuptools.packages.find]
 include = ["win32_mcp_server*"]
 
-[tool.setuptools]
-py-modules = ["server"]
+# =============================================================================
+# Ruff — linting + formatting (strictest practical config)
+# =============================================================================
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+    "F",      # Pyflakes
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "I",      # isort
+    "N",      # pep8-naming
+    "UP",     # pyupgrade
+    "YTT",    # flake8-2020
+    "ANN",    # flake8-annotations
+    "ASYNC",  # flake8-async
+    "S",      # flake8-bandit (security)
+    "BLE",    # flake8-blind-except
+    "B",      # flake8-bugbear
+    "A",      # flake8-builtins
+    "COM",    # flake8-commas
+    "C4",     # flake8-comprehensions
+    "DTZ",    # flake8-datetimez
+    "T10",    # flake8-debugger
+    "EM",     # flake8-errmsg
+    "FA",     # flake8-future-annotations
+    "ISC",    # flake8-implicit-str-concat
+    "ICN",    # flake8-import-conventions
+    "LOG",    # flake8-logging
+    "G",      # flake8-logging-format
+    "PIE",    # flake8-pie
+    "T20",    # flake8-print
+    "PYI",    # flake8-pyi
+    "PT",     # flake8-pytest-style
+    "Q",      # flake8-quotes
+    "RSE",    # flake8-raise
+    "RET",    # flake8-return
+    "SLF",    # flake8-self
+    "SLOT",   # flake8-slots
+    "SIM",    # flake8-simplify
+    "TID",    # flake8-tidy-imports
+    "TCH",    # flake8-type-checking
+    "ARG",    # flake8-unused-arguments
+    "PTH",    # flake8-use-pathlib
+    "PL",     # Pylint
+    "TRY",    # tryceratops
+    "FLY",    # flynt
+    "PERF",   # Perflint
+    "FURB",   # refurb
+    "RUF",    # Ruff-specific rules
+]
+ignore = [
+    # ── Annotations ──────────────────────────────────────────────
+    "ANN401",   # Dynamically typed expressions (typing.Any) are disallowed
+    # ── Style preferences ────────────────────────────────────────
+    "COM812",   # trailing comma (conflicts with formatter)
+    "ISC001",   # implicit string concat (conflicts with formatter)
+    # ── Practicality beats purity ────────────────────────────────
+    "TRY003",   # long messages in raise (we use ToolError with in-line msgs)
+    "EM101",    # Exception must not use a string literal
+    "EM102",    # Exception must not use an f-string literal
+    "PLR0913",  # too many arguments — unavoidable for tool handlers
+    "PLR2004",  # magic value in comparison — too noisy for coordinate math
+    "S603",     # subprocess call: check for execution of untrusted input — we validate
+    "S607",     # start process with partial path — intended for start_process tool
+    "RET504",   # unnecessary assignment before return — clarity matters
+    # ── Package design choices ───────────────────────────────────
+    "TID252",   # relative imports — standard for intra-package imports
+    "PLC0415",  # import outside top-level — intentional lazy/conditional imports
+    "TRY300",   # consider else block — style preference
+    "PERF203",  # try-except in loop — intentional for retry/poll patterns
+    "PLW0603",  # global statement — needed for mss singleton
+    "PLR0911",  # too many return statements — acceptable in dispatch()
+    "PLR0912",  # too many branches — acceptable in complex search logic
+    "BLE001",   # blind except — Win32 APIs can raise anything; specific types not available
+]
+
+[tool.ruff.lint.per-file-ignores]
+"test_*.py" = [
+    "S101",     # assert allowed in tests
+    "S110",     # try-except-pass in cleanup code
+    "S112",     # try-except-continue in retry loops
+    "ANN",      # no annotations required in tests
+    "T20",      # print allowed in tests
+    "ARG",      # unused args (fixtures)
+    "PLR2004",  # magic values in test assertions
+    "PLR0915",  # many statements in monolithic test functions
+    "PLR1722",  # exit() OK in __main__ guard
+    "PT",       # pytest style flexibility in tests
+    "E402",     # imports after config setup
+    "PERF401",  # list comprehension not required in tests
+    "SIM105",   # contextlib.suppress not required in tests
+    "SIM108",   # ternary not required in tests
+    "ASYNC251", # time.sleep needed for UI automation timing
+]
+"setup.py" = ["ANN"]
+"win32_mcp_server/__main__.py" = ["ANN"]
+# Side-effect imports that register tools — not actually "unused"
+"win32_mcp_server/tools/__init__.py" = ["F401"]
+# Handler signature requires `arguments` even when unused
+"win32_mcp_server/tools/*.py" = ["ARG001"]
+# UIA module: try-except-pass is needed because controls may not support patterns
+"win32_mcp_server/tools/uia.py" = ["ARG001", "S110", "SIM105", "PERF401"]
+"win32_mcp_server/server.py" = ["ARG001", "E402"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["win32_mcp_server"]
+
+[tool.ruff.lint.flake8-annotations]
+allow-star-arg-any = true
+mypy-init-return = true
+
+[tool.ruff.lint.pylint]
+max-args = 8
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true
+
+# =============================================================================
+# Mypy — strict type checking
+# =============================================================================
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = false   # MCP decorators aren't typed
+no_implicit_optional = true
+warn_no_return = true
+show_error_codes = true
+enable_error_code = ["ignore-without-code", "redundant-cast", "truthy-bool"]
+
+[[tool.mypy.overrides]]
+module = [
+    "mcp.*",
+    "pyautogui",
+    "pygetwindow",
+    "pyperclip",
+    "pytesseract",
+    "mss",
+    "mss.*",
+    "rapidfuzz.*",
+    "uiautomation",
+    "uiautomation.*",
+    "comtypes",
+    "comtypes.*",
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["test_e2e", "test_functional", "test_new_features"]
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+
+# =============================================================================
+# Pytest
+# =============================================================================
+[tool.pytest.ini_options]
+testpaths = ["."]
+python_files = ["test_*.py"]
+asyncio_mode = "auto"

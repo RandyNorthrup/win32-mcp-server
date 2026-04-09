@@ -54,4 +54,5 @@ htmlcov/
 
 # Temp files
 temp/
+@AutomationLog.txt
 tmp/

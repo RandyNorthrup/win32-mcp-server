@@ -1,9 +1,9 @@
 # win32-mcp-server — Enhancement & Fix Planning Document
 
-**Author:** Randy Northrup  
-**Date:** March 3, 2026  
-**Current Version:** 1.0.1  
-**Target Version:** 2.0.0  
+**Author:** Randy Northrup
+**Date:** March 3, 2026
+**Current Version:** 2.5.0
+**Target Version:** 2.5.0
 
 ---
 
@@ -30,43 +30,43 @@ This document outlines a comprehensive plan to transform win32-mcp-server from a
 ## 1. Critical Bugs & Fixes
 
 ### 1.1 — No Error Handling in Tool Dispatch
-**Problem:** Most tool handlers have no try/except. Any unhandled exception (e.g., window closed mid-operation, invalid coordinates, Tesseract not installed) crashes the server or returns an opaque MCP error.  
+**Problem:** Most tool handlers have no try/except. Any unhandled exception (e.g., window closed mid-operation, invalid coordinates, Tesseract not installed) crashes the server or returns an opaque MCP error.
 **Fix:** Wrap every tool handler in try/except, return structured error messages with actionable context (what failed, why, what to try).
 
 ### 1.2 — `type_text` Fails on Non-ASCII Characters
-**Problem:** `pyautogui.write()` only handles ASCII. Typing `"café"`, `"über"`, or any unicode text silently fails or throws.  
+**Problem:** `pyautogui.write()` only handles ASCII. Typing `"café"`, `"über"`, or any unicode text silently fails or throws.
 **Fix:** Detect non-ASCII characters and fall back to clipboard-based typing (`pyperclip.copy(text)` → `pyautogui.hotkey('ctrl', 'v')`). Add a `method` parameter: `"type"` (keystroke) or `"paste"` (clipboard).
 
 ### 1.3 — `list_windows` Returns Duplicates
-**Problem:** `gw.getAllTitles()` returns duplicate title strings. For each duplicate, the same window object is fetched, resulting in repeated entries.  
+**Problem:** `gw.getAllTitles()` returns duplicate title strings. For each duplicate, the same window object is fetched, resulting in repeated entries.
 **Fix:** Deduplicate by window handle (HWND) instead of title string. Use `gw.getAllWindows()` which returns unique window objects.
 
 ### 1.4 — `capture_window` Race Condition
-**Problem:** `win.activate()` followed by `asyncio.sleep(0.3)` is unreliable. The window may not be fully rendered/focused in 300ms, especially under load.  
+**Problem:** `win.activate()` followed by `asyncio.sleep(0.3)` is unreliable. The window may not be fully rendered/focused in 300ms, especially under load.
 **Fix:** Poll for window foreground state with exponential backoff (max 2s). Better yet, capture by window rect without requiring focus — `mss` can capture any screen region regardless of z-order.
 
 ### 1.5 — No DPI/Scaling Awareness
-**Problem:** On displays with Windows scaling (125%, 150%, etc.), all coordinates are wrong. Screenshots are the wrong size, clicks land in the wrong place.  
+**Problem:** On displays with Windows scaling (125%, 150%, etc.), all coordinates are wrong. Screenshots are the wrong size, clicks land in the wrong place.
 **Fix:** Call `SetProcessDPIAware()` or `SetProcessDpiAwareness()` via ctypes at startup. Detect and report the current DPI scaling factor.
 
 ### 1.6 — Extension.js Dependency Check is Wrong
-**Problem:** `python -c "import server"` checks for any module named `server`, not the actual package.  
+**Problem:** `python -c "import server"` checks for any module named `server`, not the actual package.
 **Fix:** Change to `python -c "import win32_mcp_server"` or `python -m win32_mcp_server --version`, or check `pip show win32-mcp-server`.
 
 ### 1.7 — `scroll` Has No Position Parameter
-**Problem:** `pyautogui.scroll()` scrolls at the current mouse position, which may not be the intended target.  
+**Problem:** `pyautogui.scroll()` scrolls at the current mouse position, which may not be the intended target.
 **Fix:** Add optional `x`, `y` parameters. If provided, move mouse there first, scroll, then optionally return.
 
 ### 1.8 — `press_key` and `hotkey` Are Redundant
-**Problem:** `press_key` already handles combos via `+` splitting. `hotkey` does the same thing with an array.  
+**Problem:** `press_key` already handles combos via `+` splitting. `hotkey` does the same thing with an array.
 **Fix:** Keep both for API flexibility but document clearly. Add validation for key names against pyautogui's key list.
 
 ### 1.9 — `list_processes` Hardcoded to 50 Results
-**Problem:** `processes[:50]` silently truncates. Users can't find processes beyond the first 50.  
+**Problem:** `processes[:50]` silently truncates. Users can't find processes beyond the first 50.
 **Fix:** Add a `limit` parameter (default 100) and `offset` for pagination. Sort by memory/name. Return total count.
 
 ### 1.10 — Window Not Found Returns Useless Error
-**Problem:** When `getWindowsWithTitle()` returns nothing, the error is just `"Window not found"`. No help finding the right title.  
+**Problem:** When `getWindowsWithTitle()` returns nothing, the error is just `"Window not found"`. No help finding the right title.
 **Fix:** Include fuzzy matches (windows with similar titles), and suggest using `list_windows`. Return the searched title for clarity.
 
 ---
@@ -74,7 +74,7 @@ This document outlines a comprehensive plan to transform win32-mcp-server from a
 ## 2. OCR Accuracy & Intelligence
 
 ### 2.1 — Image Preprocessing Pipeline
-**Problem:** Raw screenshots sent to Tesseract produce mediocre results, especially on dark themes, low contrast UIs, or small text.  
+**Problem:** Raw screenshots sent to Tesseract produce mediocre results, especially on dark themes, low contrast UIs, or small text.
 **Fix:** Add preprocessing before OCR:
 - Convert to grayscale
 - Apply adaptive thresholding (Otsu's method)
@@ -83,23 +83,23 @@ This document outlines a comprehensive plan to transform win32-mcp-server from a
 - Configurable preprocessing modes: `"auto"`, `"light_bg"`, `"dark_bg"`, `"high_contrast"`
 
 ### 2.2 — Structured OCR Output with Bounding Boxes
-**Problem:** OCR returns flat text with no position info. The AI can't locate where text appears on screen to click on it.  
+**Problem:** OCR returns flat text with no position info. The AI can't locate where text appears on screen to click on it.
 **Fix:** New tool `ocr_screen_structured` / `ocr_region_structured` using `pytesseract.image_to_data()`. Returns JSON array of `{text, x, y, width, height, confidence}` for each detected word/line.
 
 ### 2.3 — OCR Confidence Scoring
-**Problem:** No way to know if OCR results are reliable.  
+**Problem:** No way to know if OCR results are reliable.
 **Fix:** Include per-word confidence from Tesseract. Filter out low-confidence results (configurable threshold, default 60%).
 
 ### 2.4 — Window-Specific OCR
-**Problem:** No tool to OCR just a specific window — must manually calculate region coordinates.  
+**Problem:** No tool to OCR just a specific window — must manually calculate region coordinates.
 **Fix:** New tool `ocr_window` that takes `window_title` and performs OCR on that window's region. Returns text with coordinates relative to the window.
 
 ### 2.5 — OCR Language Support
-**Problem:** Hardcoded to English.  
+**Problem:** Hardcoded to English.
 **Fix:** Add `lang` parameter (default `"eng"`) to all OCR tools. Support multi-language: `"eng+fra"`.
 
 ### 2.6 — OCR Caching
-**Problem:** Repeated OCR calls on the same region are expensive.  
+**Problem:** Repeated OCR calls on the same region are expensive.
 **Fix:** Optional short-lived cache (configurable TTL, default 2s) based on screenshot hash. Skip OCR if screen hasn't changed.
 
 ---
@@ -109,43 +109,43 @@ This document outlines a comprehensive plan to transform win32-mcp-server from a
 These tools combine multiple low-level operations into single intelligent actions — the biggest usability win.
 
 ### 3.1 — `find_text_on_screen`
-**Description:** Find all occurrences of a text string on screen. Returns coordinates of each match.  
-**Implementation:** Capture screen → OCR with bounding boxes → fuzzy text matching → return list of `{text, x, y, width, height, confidence}`.  
+**Description:** Find all occurrences of a text string on screen. Returns coordinates of each match.
+**Implementation:** Capture screen → OCR with bounding boxes → fuzzy text matching → return list of `{text, x, y, width, height, confidence}`.
 **Parameters:** `text` (string to find), `window_title` (optional, scope to window), `exact` (bool, default false for fuzzy match).
 
 ### 3.2 — `click_text`
-**Description:** Find text on screen and click on it. The single most useful tool for UI testing.  
-**Implementation:** `find_text_on_screen` → click center of first/best match.  
+**Description:** Find text on screen and click on it. The single most useful tool for UI testing.
+**Implementation:** `find_text_on_screen` → click center of first/best match.
 **Parameters:** `text`, `window_title` (optional), `button` (left/right), `occurrence` (which match to click, default 1).
 
 ### 3.3 — `wait_for_text`
-**Description:** Wait until specific text appears on screen, with timeout.  
-**Implementation:** Poll with `find_text_on_screen` at configurable interval.  
-**Parameters:** `text`, `timeout_seconds` (default 10), `poll_interval` (default 0.5), `window_title` (optional).  
+**Description:** Wait until specific text appears on screen, with timeout.
+**Implementation:** Poll with `find_text_on_screen` at configurable interval.
+**Parameters:** `text`, `timeout_seconds` (default 10), `poll_interval` (default 0.5), `window_title` (optional).
 **Returns:** Coordinates of found text, or timeout error.
 
 ### 3.4 — `wait_for_window`
-**Description:** Wait for a window with a given title to appear.  
+**Description:** Wait for a window with a given title to appear.
 **Parameters:** `window_title`, `timeout_seconds` (default 10), `poll_interval` (default 0.5).
 
 ### 3.5 — `assert_text_visible`
-**Description:** Verify that text is (or is not) present on screen. For test assertions.  
-**Parameters:** `text`, `should_exist` (bool), `window_title` (optional).  
+**Description:** Verify that text is (or is not) present on screen. For test assertions.
+**Parameters:** `text`, `should_exist` (bool), `window_title` (optional).
 **Returns:** Pass/fail with details and screenshot.
 
 ### 3.6 — `fill_field`
-**Description:** Click a text field label, then type into the adjacent input.  
-**Implementation:** Find label text → click to the right of it (or use Tab) → clear existing text → type new value.  
+**Description:** Click a text field label, then type into the adjacent input.
+**Implementation:** Find label text → click to the right of it (or use Tab) → clear existing text → type new value.
 **Parameters:** `label_text`, `value`, `window_title` (optional).
 
 ### 3.7 — `get_window_snapshot`
-**Description:** Comprehensive window state capture: screenshot + OCR text + window position/size + all detected UI text with coordinates.  
-**Parameters:** `window_title`.  
+**Description:** Comprehensive window state capture: screenshot + OCR text + window position/size + all detected UI text with coordinates.
+**Parameters:** `window_title`.
 **Returns:** Screenshot image + structured JSON with all detected elements.
 
 ### 3.8 — `compare_screenshots`
-**Description:** Take a screenshot and compare with a previous one to detect changes.  
-**Implementation:** Pixel diff with configurable threshold.  
+**Description:** Take a screenshot and compare with a previous one to detect changes.
+**Implementation:** Pixel diff with configurable threshold.
 **Parameters:** `reference_image_base64` (or auto-store previous), `region` (optional), `threshold` (default 0.95).
 
 ---
@@ -156,7 +156,7 @@ These tools combine multiple low-level operations into single intelligent action
 Wrap all tool calls in a decorator that catches exceptions and returns structured errors:
 ```python
 {
-  "error": true, 
+  "error": true,
   "tool": "click",
   "message": "Coordinates (5000, 3000) are outside screen bounds (1920x1080)",
   "suggestion": "Use capture_screen to see current screen dimensions"
@@ -190,11 +190,11 @@ Prevent accidental rapid-fire operations (clicking 100 times/second). Add config
 ## 5. Performance Optimizations
 
 ### 5.1 — Screenshot Compression
-**Problem:** Full-screen PNGs are 2-5 MB. Sending these through MCP stdio is slow and bloats context.  
+**Problem:** Full-screen PNGs are 2-5 MB. Sending these through MCP stdio is slow and bloats context.
 **Fix:** Add `format` parameter (`"png"`, `"jpeg"`, `"webp"`) and `quality` parameter (1-100, default 75 for JPEG). JPEG screenshots at quality 75 are typically 200-500 KB.
 
 ### 5.2 — Screenshot Scaling
-**Problem:** Full-resolution screenshots are often unnecessary for the AI to understand the UI.  
+**Problem:** Full-resolution screenshots are often unnecessary for the AI to understand the UI.
 **Fix:** Add `scale` parameter (0.1-1.0, default 1.0). At 0.5 scale, images are 4x smaller.
 
 ### 5.3 — Lazy OCR
@@ -223,7 +223,7 @@ New tool `execute_sequence` — execute multiple operations in order without rou
 ## 6. New Capabilities
 
 ### 6.1 — `start_process`
-Launch an application by path or command. Complements `kill_process`.  
+Launch an application by path or command. Complements `kill_process`.
 **Parameters:** `command`, `args` (list), `working_directory`, `wait` (bool).
 
 ### 6.2 — `get_window_info`
@@ -417,7 +417,7 @@ The following changes deliver the **most impact with the least effort**:
 4. **Screenshot compression** — 5-10x smaller payloads. Faster round trips.
 5. **Global error handling** — Stops the server from crashing on edge cases.
 6. **Unicode `type_text`** — Basic correctness fix.
-7. **`capture_grid`** — On-screen coordinate grid overlay. Captures the screen with a labelled grid drawn on top so the AI can precisely identify pixel coordinates for clicking, dragging, etc. Adapts to resolution, accounts for DPI/zoom, and uses dual-colour rendering (black outline + magenta/cyan fill + yellow labels on dark badges) for visibility on any background.
+7. *(removed — `capture_grid` was unused)*
 
 ---
 

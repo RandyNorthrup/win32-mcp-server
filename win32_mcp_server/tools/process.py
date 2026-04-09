@@ -13,6 +13,7 @@ import json
 import logging
 import subprocess
 import time
+from typing import Any
 
 import psutil
 from mcp.types import TextContent
@@ -23,37 +24,41 @@ from ..utils.errors import ToolError
 logger = logging.getLogger("win32-mcp")
 
 
-@registry.register("list_processes", "List running processes with PIDs, memory, and CPU info", {
-    "type": "object",
-    "properties": {
-        "filter": {
-            "type": "string",
-            "description": "Filter by process name (case-insensitive substring match)",
-        },
-        "limit": {
-            "type": "number",
-            "description": "Maximum processes to return (default: 100)",
-        },
-        "offset": {
-            "type": "number",
-            "description": "Skip this many results for pagination (default: 0)",
-        },
-        "sort_by": {
-            "type": "string",
-            "enum": ["name", "pid", "memory", "cpu"],
-            "description": "Sort field (default: memory, descending)",
+@registry.register(
+    "list_processes",
+    "List running processes with PIDs, memory, and CPU info",
+    {
+        "type": "object",
+        "properties": {
+            "filter": {
+                "type": "string",
+                "description": "Filter by process name (case-insensitive substring match)",
+            },
+            "limit": {
+                "type": "number",
+                "description": "Maximum processes to return (default: 100)",
+            },
+            "offset": {
+                "type": "number",
+                "description": "Skip this many results for pagination (default: 0)",
+            },
+            "sort_by": {
+                "type": "string",
+                "enum": ["name", "pid", "memory", "cpu"],
+                "description": "Sort field (default: memory, descending)",
+            },
         },
     },
-})
-async def handle_list_processes(arguments: dict):
+)
+async def handle_list_processes(arguments: dict[str, Any]) -> list[TextContent]:
     filter_name = arguments.get("filter", "").lower().strip()
     limit = int(arguments.get("limit", 100))
     offset = int(arguments.get("offset", 0))
     sort_by = arguments.get("sort_by", "memory")
 
-    processes: list[dict] = []
+    processes: list[dict[str, Any]] = []
 
-    def _gather():
+    def _gather() -> None:
         for proc in psutil.process_iter(["pid", "name", "status", "memory_info", "cpu_percent"]):
             try:
                 info = proc.info
@@ -64,13 +69,15 @@ async def handle_list_processes(arguments: dict):
                 mem_info = info.get("memory_info")
                 mem_mb = round(mem_info.rss / 1024 / 1024, 1) if mem_info else 0
 
-                processes.append({
-                    "pid": info["pid"],
-                    "name": name,
-                    "status": info.get("status", "unknown"),
-                    "memory_mb": mem_mb,
-                    "cpu_percent": info.get("cpu_percent", 0) or 0,
-                })
+                processes.append(
+                    {
+                        "pid": info["pid"],
+                        "name": name,
+                        "status": info.get("status", "unknown"),
+                        "memory_mb": mem_mb,
+                        "cpu_percent": info.get("cpu_percent", 0) or 0,
+                    }
+                )
             except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                 pass
 
@@ -87,45 +94,57 @@ async def handle_list_processes(arguments: dict):
     processes.sort(key=sort_keys.get(sort_by, sort_keys["memory"]), reverse=reverse)
 
     total_count = len(processes)
-    page = processes[offset:offset + limit]
+    page = processes[offset : offset + limit]
 
-    return [TextContent(type="text", text=json.dumps({
-        "total_count": total_count,
-        "showing": f"{offset + 1}–{offset + len(page)}",
-        "filter": filter_name or None,
-        "sort_by": sort_by,
-        "processes": page,
-    }, indent=2))]
+    return [
+        TextContent(
+            type="text",
+            text=json.dumps(
+                {
+                    "total_count": total_count,
+                    "showing": f"{offset + 1}-{offset + len(page)}",
+                    "filter": filter_name or None,
+                    "sort_by": sort_by,
+                    "processes": page,
+                },
+                indent=2,
+            ),
+        )
+    ]
 
 
-@registry.register("kill_process", "Terminate a process by PID", {
-    "type": "object",
-    "properties": {
-        "pid": {"type": "number", "description": "Process ID to terminate"},
-        "force": {
-            "type": "boolean",
-            "description": "Force kill (SIGKILL) instead of graceful termination (default: false)",
+@registry.register(
+    "kill_process",
+    "Terminate a process by PID",
+    {
+        "type": "object",
+        "properties": {
+            "pid": {"type": "number", "description": "Process ID to terminate"},
+            "force": {
+                "type": "boolean",
+                "description": "Force kill (SIGKILL) instead of graceful termination (default: false)",
+            },
         },
+        "required": ["pid"],
     },
-    "required": ["pid"],
-})
-async def handle_kill_process(arguments: dict):
+)
+async def handle_kill_process(arguments: dict[str, Any]) -> list[TextContent]:
     pid = int(arguments["pid"])
     force = arguments.get("force", False)
 
     try:
         proc = psutil.Process(pid)
         name = proc.name()
-    except psutil.NoSuchProcess:
+    except psutil.NoSuchProcess as exc:
         raise ToolError(
             f"No process with PID {pid}",
             suggestion="Use list_processes to find the correct PID",
-        )
-    except psutil.AccessDenied:
+        ) from exc
+    except psutil.AccessDenied as exc:
         raise ToolError(
             f"Access denied to process {pid}",
             suggestion="Run the MCP server as Administrator",
-        )
+        ) from exc
 
     try:
         if force:
@@ -138,52 +157,60 @@ async def handle_kill_process(arguments: dict):
             except psutil.TimeoutExpired:
                 proc.kill()  # Force kill if graceful didn't work
                 proc.wait(timeout=3)
-    except psutil.AccessDenied:
+    except psutil.AccessDenied as exc:
         raise ToolError(
             f"Access denied when killing process {name} (PID {pid})",
             suggestion="Run the MCP server as Administrator",
-        )
+        ) from exc
     except Exception as exc:
-        raise ToolError(f"Failed to kill process {name} (PID {pid}): {exc}")
+        raise ToolError(f"Failed to kill process {name} (PID {pid}): {exc}") from exc
+
+    # Verify process is gone
+    if psutil.pid_exists(pid):
+        logger.warning("kill_process: PID %d still exists after kill", pid)
 
     return [TextContent(type="text", text=f"Killed process {name} (PID: {pid})")]
 
 
-@registry.register("start_process", "Launch an application or command", {
-    "type": "object",
-    "properties": {
-        "command": {
-            "type": "string",
-            "description": "Executable path or command name (e.g. 'notepad', 'C:\\\\Program Files\\\\app.exe')",
+@registry.register(
+    "start_process",
+    "Launch an application or command",
+    {
+        "type": "object",
+        "properties": {
+            "command": {
+                "type": "string",
+                "description": "Executable path or command name (e.g. 'notepad', 'C:\\\\Program Files\\\\app.exe')",
+            },
+            "args": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Command-line arguments",
+            },
+            "working_directory": {
+                "type": "string",
+                "description": "Working directory for the process",
+            },
+            "wait": {
+                "type": "boolean",
+                "description": "Wait for process to complete (default: false). True=block until done.",
+            },
+            "timeout_seconds": {
+                "type": "number",
+                "description": "Timeout in seconds when wait=true (default: 30)",
+            },
         },
-        "args": {
-            "type": "array",
-            "items": {"type": "string"},
-            "description": "Command-line arguments",
-        },
-        "working_directory": {
-            "type": "string",
-            "description": "Working directory for the process",
-        },
-        "wait": {
-            "type": "boolean",
-            "description": "Wait for process to complete (default: false). True=block until done.",
-        },
-        "timeout_seconds": {
-            "type": "number",
-            "description": "Timeout in seconds when wait=true (default: 30)",
-        },
+        "required": ["command"],
     },
-    "required": ["command"],
-})
-async def handle_start_process(arguments: dict):
+)
+async def handle_start_process(arguments: dict[str, Any]) -> dict[str, Any]:
     command = arguments["command"]
     args = arguments.get("args", [])
     cwd = arguments.get("working_directory")
     wait = arguments.get("wait", False)
     timeout = arguments.get("timeout_seconds", 30)
 
-    full_cmd = [command] + args
+    full_cmd = [command, *args]
 
     if wait:
         try:
@@ -203,16 +230,16 @@ async def handle_start_process(arguments: dict):
                 "stderr": result.stderr[:10000] if result.stderr else "",
                 "completed": True,
             }
-        except FileNotFoundError:
+        except FileNotFoundError as exc:
             raise ToolError(
                 f"Command not found: {command}",
                 suggestion="Check the executable path or ensure it's on PATH",
-            )
-        except subprocess.TimeoutExpired:
+            ) from exc
+        except subprocess.TimeoutExpired as exc:
             raise ToolError(
                 f"Command timed out after {timeout}s: {command}",
                 suggestion="Increase timeout_seconds or use wait=false",
-            )
+            ) from exc
     else:
         try:
             proc = await asyncio.to_thread(
@@ -226,37 +253,41 @@ async def handle_start_process(arguments: dict):
                 "pid": proc.pid,
                 "started": True,
             }
-        except FileNotFoundError:
+        except FileNotFoundError as exc:
             raise ToolError(
                 f"Command not found: {command}",
                 suggestion="Check the executable path or ensure it's on PATH",
-            )
-        except PermissionError:
+            ) from exc
+        except PermissionError as exc:
             raise ToolError(
                 f"Permission denied: {command}",
                 suggestion="Run the MCP server as Administrator",
-            )
+            ) from exc
 
 
-@registry.register("wait_for_idle", "Wait for a process to become idle (CPU usage drops below threshold)", {
-    "type": "object",
-    "properties": {
-        "pid": {"type": "number", "description": "Process ID to monitor"},
-        "window_title": {
-            "type": "string",
-            "description": "Alternative: find PID by window title",
-        },
-        "timeout_seconds": {
-            "type": "number",
-            "description": "Maximum wait time (default: 30)",
-        },
-        "cpu_threshold": {
-            "type": "number",
-            "description": "CPU percent below which process is considered idle (default: 5.0)",
+@registry.register(
+    "wait_for_idle",
+    "Wait for a process to become idle (CPU usage drops below threshold)",
+    {
+        "type": "object",
+        "properties": {
+            "pid": {"type": "number", "description": "Process ID to monitor"},
+            "window_title": {
+                "type": "string",
+                "description": "Alternative: find PID by window title",
+            },
+            "timeout_seconds": {
+                "type": "number",
+                "description": "Maximum wait time (default: 30)",
+            },
+            "cpu_threshold": {
+                "type": "number",
+                "description": "CPU percent below which process is considered idle (default: 5.0)",
+            },
         },
     },
-})
-async def handle_wait_for_idle(arguments: dict):
+)
+async def handle_wait_for_idle(arguments: dict[str, Any]) -> dict[str, Any]:
     pid = arguments.get("pid")
     window_title = arguments.get("window_title")
     timeout = arguments.get("timeout_seconds", 30)
@@ -265,6 +296,7 @@ async def handle_wait_for_idle(arguments: dict):
     # Resolve PID from window title if needed
     if pid is None and window_title:
         from ..utils.window_match import find_window_strict, get_window_pid
+
         win = find_window_strict(window_title)
         hwnd = getattr(win, "_hWnd", None)
         if hwnd:
@@ -278,8 +310,8 @@ async def handle_wait_for_idle(arguments: dict):
 
     try:
         proc = psutil.Process(int(pid))
-    except psutil.NoSuchProcess:
-        raise ToolError(f"Process {pid} not found")
+    except psutil.NoSuchProcess as exc:
+        raise ToolError(f"Process {pid} not found") from exc
 
     # Initialize CPU measurement
     proc.cpu_percent()
@@ -287,7 +319,17 @@ async def handle_wait_for_idle(arguments: dict):
 
     start = time.monotonic()
     while True:
-        cpu = proc.cpu_percent(interval=0)
+        try:
+            cpu = proc.cpu_percent(interval=0)
+        except psutil.NoSuchProcess:
+            return {
+                "idle": True,
+                "pid": pid,
+                "process_name": "terminated",
+                "reason": "Process exited during monitoring",
+                "elapsed_seconds": round(time.monotonic() - start, 2),
+            }
+
         if cpu <= threshold:
             return {
                 "idle": True,

@@ -15,35 +15,37 @@ logger = logging.getLogger("win32-mcp")
 
 # ---------------------------------------------------------------------------
 # Fuzzy matching — prefer rapidfuzz, fall back to difflib
+# Case-insensitive in both paths for consistency.
 # ---------------------------------------------------------------------------
 
 try:
     from rapidfuzz import fuzz as _rf_fuzz
-    from rapidfuzz import process as _rf_process
 
     def _fuzzy_ratio(s1: str, s2: str) -> int:
-        return int(_rf_fuzz.partial_ratio(s1, s2))
-
-    def _fuzzy_best_matches(query: str, choices: list[str], limit: int = 5) -> list[tuple[str, int]]:
-        if not choices:
-            return []
-        results = _rf_process.extract(query, choices, scorer=_rf_fuzz.partial_ratio, limit=limit)
-        return [(r[0], int(r[1])) for r in results]
+        """Case-insensitive fuzzy match score (0-100)."""
+        return int(_rf_fuzz.partial_ratio(s1.lower(), s2.lower()))
 
 except ImportError:
-    from difflib import SequenceMatcher, get_close_matches
+    from difflib import SequenceMatcher
 
     def _fuzzy_ratio(s1: str, s2: str) -> int:
+        """Case-insensitive fuzzy match score (0-100)."""
         return int(SequenceMatcher(None, s1.lower(), s2.lower()).ratio() * 100)
 
-    def _fuzzy_best_matches(query: str, choices: list[str], limit: int = 5) -> list[tuple[str, int]]:
-        close = get_close_matches(query, choices, n=limit, cutoff=0.3)
-        return [(c, _fuzzy_ratio(query, c)) for c in close]
+
+def _fuzzy_best_matches(query: str, choices: list[str], limit: int = 5) -> list[tuple[str, int]]:
+    """Return up to *limit* best fuzzy matches, sorted by score descending."""
+    if not choices:
+        return []
+    scored = [(_fuzzy_ratio(query, c), c) for c in choices]
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [(c, s) for s, c in scored[:limit]]
 
 
 # ---------------------------------------------------------------------------
 # Window Finding
 # ---------------------------------------------------------------------------
+
 
 def find_window(
     title: str,
@@ -102,6 +104,7 @@ def find_window_strict(title: str) -> Any:
 # Deduplication
 # ---------------------------------------------------------------------------
 
+
 def get_all_windows_deduped() -> list[Any]:
     """Return all open windows, deduplicated by HWND, excluding empty titles."""
     seen_handles: set[int] = set()
@@ -122,13 +125,15 @@ def get_all_windows_deduped() -> list[Any]:
 # Window → PID
 # ---------------------------------------------------------------------------
 
+
 def get_window_pid(hwnd: int) -> int | None:
     """Return the PID that owns a window handle, or None."""
     try:
         pid = ctypes.wintypes.DWORD()
         ctypes.windll.user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
         return int(pid.value) if pid.value else None
-    except Exception:
+    except Exception as exc:
+        logger.debug("Could not get PID for HWND %s: %s", hwnd, exc)
         return None
 
 
@@ -136,21 +141,20 @@ def get_window_pid(hwnd: int) -> int | None:
 # Window State Helpers
 # ---------------------------------------------------------------------------
 
-def get_window_details(win) -> dict:
+
+def get_window_details(win: Any) -> dict[str, Any]:
     """Extract a detail dict from a pygetwindow window object."""
     hwnd = getattr(win, "_hWnd", None)
     pid = get_window_pid(hwnd) if hwnd else None
-    try:
-        is_responding = True  # pygetwindow doesn't expose this
-        if pid:
+    is_responding = True
+    if pid:
+        try:
             import psutil
-            try:
-                proc = psutil.Process(pid)
-                is_responding = proc.status() != psutil.STATUS_ZOMBIE
-            except Exception:
-                pass
-    except Exception:
-        is_responding = None
+
+            proc = psutil.Process(pid)
+            is_responding = proc.status() != psutil.STATUS_ZOMBIE
+        except Exception as exc:
+            logger.debug("Could not get process status for PID %s: %s", pid, exc)
 
     return {
         "title": win.title,
