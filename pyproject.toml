@@ -136,24 +136,6 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"test_*.py" = [
-    "S101",     # assert allowed in tests
-    "S110",     # try-except-pass in cleanup code
-    "S112",     # try-except-continue in retry loops
-    "ANN",      # no annotations required in tests
-    "T20",      # print allowed in tests
-    "ARG",      # unused args (fixtures)
-    "PLR2004",  # magic values in test assertions
-    "PLR0915",  # many statements in monolithic test functions
-    "PLR1722",  # exit() OK in __main__ guard
-    "PT",       # pytest style flexibility in tests
-    "E402",     # imports after config setup
-    "PERF401",  # list comprehension not required in tests
-    "SIM105",   # contextlib.suppress not required in tests
-    "SIM108",   # ternary not required in tests
-    "ASYNC251", # time.sleep needed for UI automation timing
-]
-"setup.py" = ["ANN"]
 "win32_mcp_server/__main__.py" = ["ANN"]
 # Side-effect imports that register tools — not actually "unused"
 "win32_mcp_server/tools/__init__.py" = ["F401"]
@@ -191,7 +173,6 @@ warn_unused_ignores = true
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
 check_untyped_defs = true
-disallow_untyped_decorators = false   # MCP decorators aren't typed
 no_implicit_optional = true
 warn_no_return = true
 show_error_codes = true
@@ -213,11 +194,3 @@ module = [
     "comtypes.*",
 ]
 ignore_missing_imports = true
-
-# =============================================================================
-# Pytest
-# =============================================================================
-[tool.pytest.ini_options]
-testpaths = ["."]
-python_files = ["test_*.py"]
-asyncio_mode = "auto"

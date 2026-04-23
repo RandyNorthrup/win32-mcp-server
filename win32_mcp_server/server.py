@@ -130,13 +130,13 @@ async def handle_health_check(arguments: dict[str, Any]) -> dict[str, Any]:
 app = Server("win32-inspector")
 
 
-@app.list_tools()  # type: ignore[no-untyped-call]
+@app.list_tools()  # type: ignore[untyped-decorator, no-untyped-call]
 async def list_tools() -> list[Tool]:
     """Return all registered tool definitions."""
     return registry.get_tools()
 
 
-@app.call_tool()
+@app.call_tool()  # type: ignore[untyped-decorator]
 async def call_tool(name: str, arguments: Any) -> list[TextContent | ImageContent]:
     """Dispatch a tool call through the registry."""
     args = arguments if isinstance(arguments, dict) else {}

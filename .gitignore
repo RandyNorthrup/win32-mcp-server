@@ -56,3 +56,6 @@ htmlcov/
 temp/
 @AutomationLog.txt
 tmp/
+
+# Local dev docs
+PLANNING.md

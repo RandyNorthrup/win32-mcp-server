@@ -348,7 +348,6 @@ win32-mcp-server/
 ├── extension.js                 # VS Code extension bootstrap
 ├── package.json                 # VS Code extension manifest
 ├── pyproject.toml               # Python package config
-├── server.py                    # Root entry point
 └── LICENSE                      # MIT License
 ```
 

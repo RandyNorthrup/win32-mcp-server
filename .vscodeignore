@@ -11,10 +11,8 @@ dist/
 build/
 PLANNING.md
 MANIFEST.in
-setup.py
 pyproject.toml
 win32_mcp_server/
-server.py
 
 # Build/lint caches
 .mypy_cache/
