@@ -1,7 +1,7 @@
 # win32-mcp-server — Enhancement & Fix Planning Document
 
 **Author:** Randy Northrup
-**Date:** March 3, 2026
+**Date:** April 22, 2026
 **Current Version:** 2.5.1
 **Target Version:** 2.5.1
 

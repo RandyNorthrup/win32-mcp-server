@@ -5,6 +5,7 @@
 The most comprehensive Windows desktop automation server for the [Model Context Protocol](https://modelcontextprotocol.io/). Give any MCP-compatible AI agent full control over Windows applications: intelligent text finding and clicking, structured OCR, screenshot capture, mouse/keyboard input, window management, process control, and multi-step batch operations — all through a single MCP server.
 
 [![Version](https://img.shields.io/badge/version-2.5.1-blue)](https://github.com/RandyNorthrup/win32-mcp-server/releases)
+[![PyPI](https://img.shields.io/pypi/v/win32-mcp-server)](https://pypi.org/project/win32-mcp-server/)
 [![VS Code Marketplace](https://img.shields.io/badge/VS%20Code-Marketplace-007ACC)](https://marketplace.visualstudio.com/items?itemName=RandyNorthrup.win32-mcp-inspector)
 [![Python](https://img.shields.io/badge/python-3.10%2B-green)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-yellow)](LICENSE)
@@ -12,13 +13,17 @@ The most comprehensive Windows desktop automation server for the [Model Context 
 
 ---
 
-## What's New in v2.0
+## What's New in v2.5
 
-- **53 tools** (up from 25) — fully modular, enterprise-quality architecture
+- **53 tools** — fully modular, enterprise-quality architecture
+- **UI Automation API** — 6 new tools: inspect control trees, click controls by name, read/set values without coordinates
+- **OCR caching** — perceptual image hashing with 2-second TTL for faster repeated calls
+- **Operation verification** — optional `verify` on `click`/`focus_window`; auto-verify on `kill_process`
+- **VS Code status bar** — live loading/ready/error/disabled indicator in the extension
+- **8 new config settings** — Tesseract path, OCR language, preprocess mode, screenshot format/quality/scale
 - **Smart automation tools** — `click_text`, `wait_for_text`, `fill_field`, `execute_sequence`, and more
-- **UI Automation API** — inspect control trees, click controls by name, read/set values without coordinates
 - **Structured OCR** — bounding boxes, confidence scores, and screen coordinates for every word
-- **Fuzzy window matching** — find windows by partial title with intelligent suggestions
+- **Fuzzy window matching** — punctuation-aware title matching with intelligent suggestions
 - **DPI-aware coordinates** — automatic per-monitor DPI awareness for high-resolution displays
 - **Image preprocessing** — auto, light_bg, dark_bg, high_contrast modes for better OCR accuracy
 - **Multi-step sequences** — batch multiple tool calls in a single request
@@ -110,16 +115,15 @@ The most comprehensive Windows desktop automation server for the [Model Context 
 
 ### Install Package
 
-**From GitHub (recommended — latest v2.0):**
-```bash
-pip install git+https://github.com/RandyNorthrup/win32-mcp-server.git
-```
-
-**From PyPI:**
+**From PyPI (recommended):**
 ```bash
 pip install win32-mcp-server
 ```
-> **Note:** PyPI may lag behind the latest GitHub release. For the newest features, install from GitHub.
+
+**From GitHub (latest unreleased):**
+```bash
+pip install git+https://github.com/RandyNorthrup/win32-mcp-server.git
+```
 
 **From source:**
 ```bash
@@ -398,6 +402,7 @@ The server can:
 | [pytesseract](https://github.com/madmaze/pytesseract) | Tesseract OCR wrapper |
 | [psutil](https://github.com/giampaolo/psutil) | Process management |
 | [RapidFuzz](https://github.com/maxbachmann/RapidFuzz) | Fast fuzzy string matching |
+| [uiautomation](https://github.com/yinkaisheng/Python-UIAutomation-for-Windows) | Windows UI Automation API |
 
 ---
 
@@ -420,6 +425,7 @@ MIT License — see [LICENSE](LICENSE) file.
 ## Links
 
 - **Repository**: https://github.com/RandyNorthrup/win32-mcp-server
+- **PyPI**: https://pypi.org/project/win32-mcp-server/
 - **VS Code Marketplace**: https://marketplace.visualstudio.com/items?itemName=RandyNorthrup.win32-mcp-inspector
 - **Issues**: https://github.com/RandyNorthrup/win32-mcp-server/issues
 - **MCP Specification**: https://modelcontextprotocol.io/
