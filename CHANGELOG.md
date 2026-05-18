@@ -2,6 +2,50 @@
 
 All notable changes to the **Windows Automation Inspector (MCP)** extension will be documented in this file.
 
+## [Unreleased]
+
+## [2.6.0] — 2026-05-18
+
+### Added
+- Runtime safety profiles via `WIN32_MCP_SECURITY_PROFILE` (`read_only`, `interactive`, `unrestricted`), plus allow/block lists.
+- Dry-run mode, high-risk confirmation tokens, and process command allow/block lists.
+- Environment-backed server configuration for OCR, capture defaults, timeouts, subprocess output limits, redaction, and coordinate validation.
+- Central tool argument validation and redacted audit logging.
+- Central execution manager for serialized OS-mutating calls and hard tool timeouts.
+- UI Automation-first paths for smart click/fill actions with OCR fallback.
+- Optional `WIN32_MCP_RESULT_ENVELOPE` for stable `{success, tool, data}` JSON dict responses.
+- Mutating tool schemas now advertise `dry_run`; high-risk tool schemas advertise `confirmation_token`.
+- Windows GitHub Actions CI for ruff, mypy, pytest, and VS Code extension syntax checks.
+- Dependabot and CodeQL workflows for dependency upkeep and static security scanning.
+- `SECURITY.md`, `CONTRIBUTING.md`, `.editorconfig`, `.gitattributes`, and Python `dev` extra for release hygiene.
+- Focused safety regression tests for policy, schema validation, OCR cache copying, UIA matching, and bounded subprocess output.
+- CLI smoke flags: `--version`, `--list-tools`, and `--health-check`.
+- Tesseract auto-discovery for common Windows install paths, so OCR works even when installer does not update PATH.
+
+### Changed
+- Default security profile is now `interactive`, blocking high-risk process/window actions unless explicitly set to `unrestricted`.
+- PyAutoGUI fail-safe is now enabled by default; set `WIN32_MCP_PYAUTOGUI_FAILSAFE=false` only for isolated automation hosts.
+- Package classifier moved to `Production/Stable`.
+
+### Fixed
+- Detached started processes from MCP stdio to avoid protocol corruption.
+- Bounded waited process output to prevent memory growth.
+- Hardened mouse, keyboard, clipboard, window, capture, OCR, process, smart, and UIA argument parsing to reject malformed inputs consistently.
+- Validated `press_key` and `hotkey` key names before calling PyAutoGUI.
+- Rejected non-boolean per-call `dry_run` overrides instead of treating strings as truthy.
+- Made registry safely serialize non-MCP content lists instead of returning invalid content objects.
+- `health_check` now reports fail-safe, dry-run, and active allow/block policy counts.
+- `python -m win32_mcp_server --version` now exits after printing version instead of starting stdio transport.
+- Package import is now lazy and does not import server/tools until the console entry point runs.
+- VS Code extension Tesseract check now probes common Windows install paths when no custom path is configured.
+- Made VS Code extension detect exact pinned server version and honor custom Tesseract path.
+- Scoped UI Automation click/read/set searches to the target window.
+- Fixed OCR cache mutation leak from structured OCR callers.
+- Rejected invalid `click_text` occurrences before OCR/click work.
+- Validated coordinates against actual monitor rectangles instead of only the virtual bounding box.
+- Made VS Code install flow use explicit prompt, pinned PyPI package, and shell-free `execFile`.
+- Cached Tesseract availability checks to reduce repeated OCR startup overhead.
+
 ## [2.5.1] — 2026-04-09
 
 ### Fixed

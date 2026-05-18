@@ -22,9 +22,10 @@ from mcp.types import ImageContent, TextContent
 from mss import mss
 from PIL import Image
 
-from ..config import config
+from ..config import VALID_CAPTURE_FORMATS, config
 from ..registry import registry
-from ..utils.coordinates import clamp_rect_to_virtual_screen, get_all_monitors, validate_coordinates
+from ..utils.args import get_bool, get_enum, get_float, get_int, get_str
+from ..utils.coordinates import clamp_rect_to_virtual_screen, get_all_monitors, validate_coordinates, validate_region
 from ..utils.errors import ToolError
 from ..utils.imaging import compute_image_diff, image_to_base64, mss_to_pil
 from ..utils.window_match import find_window_strict
@@ -46,6 +47,27 @@ def _get_mss() -> Any:
         inst = mss()
         _mss_local.instance = inst
     return inst
+
+
+def _capture_options(arguments: dict[str, Any]) -> tuple[str, int, float]:
+    fmt = get_enum(arguments, "format", VALID_CAPTURE_FORMATS, default=config.capture.default_format)
+    quality = get_int(arguments, "quality", default=config.capture.default_quality, min_value=1, max_value=100)
+    scale = get_float(arguments, "scale", default=config.capture.default_scale, min_value=0.1, max_value=1.0)
+    return fmt, quality, scale
+
+
+def _optional_region(arguments: dict[str, Any], key: str = "region") -> tuple[int, int, int, int] | None:
+    region = arguments.get(key)
+    if region is None:
+        return None
+    if not isinstance(region, dict):
+        raise ToolError(f"Argument '{key}' must be an object")
+    return (
+        get_int(region, "x", required=True),
+        get_int(region, "y", required=True),
+        get_int(region, "width", required=True, min_value=1),
+        get_int(region, "height", required=True, min_value=1),
+    )
 
 
 # ===================================================================
@@ -181,19 +203,21 @@ async def capture_window_impl(window_title: str, activate: bool = True) -> tuple
             },
             "quality": {
                 "type": "number",
+                "minimum": 1,
+                "maximum": 100,
                 "description": "Compression quality 1-100 for jpeg/webp (default: 85)",
             },
             "scale": {
                 "type": "number",
+                "minimum": 0.1,
+                "maximum": 1.0,
                 "description": "Resize factor 0.1-1.0 (default: 1.0). 0.5 = half size, 4x smaller file.",
             },
         },
     },
 )
 async def handle_capture_screen(arguments: dict[str, Any]) -> list[TextContent | ImageContent]:
-    fmt = arguments.get("format", config.capture.default_format)
-    quality = arguments.get("quality", config.capture.default_quality)
-    scale = arguments.get("scale", config.capture.default_scale)
+    fmt, quality, scale = _capture_options(arguments)
 
     img = await capture_screen_impl()
     data, mime, size = image_to_base64(img, fmt=fmt, quality=quality, scale=scale)
@@ -221,8 +245,8 @@ async def handle_capture_screen(arguments: dict[str, Any]) -> list[TextContent |
         "properties": {
             "window_title": {"type": "string", "description": "Full or partial window title"},
             "format": {"type": "string", "enum": ["png", "jpeg", "webp"]},
-            "quality": {"type": "number"},
-            "scale": {"type": "number"},
+            "quality": {"type": "number", "minimum": 1, "maximum": 100},
+            "scale": {"type": "number", "minimum": 0.1, "maximum": 1.0},
             "activate": {
                 "type": "boolean",
                 "description": "Bring window to front before capture (default: true)",
@@ -232,13 +256,11 @@ async def handle_capture_screen(arguments: dict[str, Any]) -> list[TextContent |
     },
 )
 async def handle_capture_window(arguments: dict[str, Any]) -> list[TextContent | ImageContent]:
-    fmt = arguments.get("format", config.capture.default_format)
-    quality = arguments.get("quality", config.capture.default_quality)
-    scale = arguments.get("scale", config.capture.default_scale)
-    activate = arguments.get("activate", True)
+    fmt, quality, scale = _capture_options(arguments)
+    activate = get_bool(arguments, "activate", default=True)
 
     img, win_info = await capture_window_impl(
-        arguments["window_title"],
+        get_str(arguments, "window_title", required=True, min_length=1, max_length=512),
         activate=activate,
     )
     data, mime, size = image_to_base64(img, fmt=fmt, quality=quality, scale=scale)
@@ -266,20 +288,19 @@ async def handle_capture_window(arguments: dict[str, Any]) -> list[TextContent |
         "properties": {
             "monitor_index": {
                 "type": "number",
-                "description": "1-based monitor index (1=primary). Use list_monitors to see indices.",
+                "minimum": 0,
+                "description": "Monitor index (1=primary, 0=virtual screen). Use list_monitors to see indices.",
             },
             "format": {"type": "string", "enum": ["png", "jpeg", "webp"]},
-            "quality": {"type": "number"},
-            "scale": {"type": "number"},
+            "quality": {"type": "number", "minimum": 1, "maximum": 100},
+            "scale": {"type": "number", "minimum": 0.1, "maximum": 1.0},
         },
         "required": ["monitor_index"],
     },
 )
 async def handle_capture_monitor(arguments: dict[str, Any]) -> list[TextContent | ImageContent]:
-    idx = int(arguments["monitor_index"])
-    fmt = arguments.get("format", config.capture.default_format)
-    quality = arguments.get("quality", config.capture.default_quality)
-    scale = arguments.get("scale", config.capture.default_scale)
+    idx = get_int(arguments, "monitor_index", required=True, min_value=0)
+    fmt, quality, scale = _capture_options(arguments)
 
     img = await capture_screen_impl(monitor_index=idx)
     data, mime, size = image_to_base64(img, fmt=fmt, quality=quality, scale=scale)
@@ -333,7 +354,8 @@ async def handle_list_monitors(arguments: dict[str, Any]) -> dict[str, Any]:
     },
 )
 async def handle_get_pixel_color(arguments: dict[str, Any]) -> dict[str, int | str]:
-    x, y = int(arguments["x"]), int(arguments["y"])
+    x = get_int(arguments, "x", required=True)
+    y = get_int(arguments, "y", required=True)
     if config.validate_coordinates:
         validate_coordinates(x, y, "get_pixel_color")
 
@@ -371,12 +393,15 @@ async def handle_get_pixel_color(arguments: dict[str, Any]) -> dict[str, int | s
                 "properties": {
                     "x": {"type": "number"},
                     "y": {"type": "number"},
-                    "width": {"type": "number"},
-                    "height": {"type": "number"},
+                    "width": {"type": "number", "minimum": 1},
+                    "height": {"type": "number", "minimum": 1},
                 },
+                "required": ["x", "y", "width", "height"],
             },
             "threshold": {
                 "type": "number",
+                "minimum": 0,
+                "maximum": 1,
                 "description": "Similarity threshold 0-1 (default: 0.95). Above = match.",
             },
         },
@@ -384,29 +409,33 @@ async def handle_get_pixel_color(arguments: dict[str, Any]) -> dict[str, int | s
     },
 )
 async def handle_compare_screenshots(arguments: dict[str, Any]) -> dict[str, Any]:
-    threshold = arguments.get("threshold", 0.95)
-    region = arguments.get("region")
+    threshold = get_float(arguments, "threshold", default=0.95, min_value=0.0, max_value=1.0)
+    region = _optional_region(arguments)
 
     # Capture current
     if region:
+        rx, ry, rw, rh = region
+        if config.validate_coordinates:
+            rx, ry, rw, rh = validate_region(rx, ry, rw, rh)
         current = await capture_region_impl(
-            int(region["x"]),
-            int(region["y"]),
-            int(region["width"]),
-            int(region["height"]),
+            rx,
+            ry,
+            rw,
+            rh,
         )
     else:
         current = await capture_screen_impl()
 
     # Decode reference — limit to ~50 MB decoded to prevent OOM
-    ref_b64 = arguments["reference_image"]
-    if len(ref_b64) > 67_108_864:
-        raise ToolError(
-            "Reference image too large (max ~50 MB)",
-            suggestion="Use a smaller or lower-resolution reference image",
-        )
+    max_b64_len = int(config.limits.max_reference_image_bytes * 4 / 3) + 4
+    ref_b64 = get_str(arguments, "reference_image", required=True, min_length=1, max_length=max_b64_len)
     try:
-        ref_bytes = base64.b64decode(ref_b64)
+        ref_bytes = base64.b64decode(ref_b64, validate=True)
+    except Exception as exc:
+        raise ToolError(f"Invalid reference image: {exc}") from exc
+    if len(ref_bytes) > config.limits.max_reference_image_bytes:
+        raise ToolError("Reference image too large (max ~50 MB)")
+    try:
         reference = Image.open(io.BytesIO(ref_bytes)).convert("RGB")
     except Exception as exc:
         raise ToolError(f"Invalid reference image: {exc}") from exc

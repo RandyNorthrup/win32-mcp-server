@@ -1,5 +1,5 @@
 """
-MCP Server for Windows UI Inspection and Control - v2.5
+MCP Server for Windows UI Inspection and Control - v2.6
 
 Enterprise-grade automation server with 53 tools for screen capture, OCR,
 mouse/keyboard control, window management, process control, UI Automation,
@@ -9,11 +9,13 @@ Author: Randy Northrup
 GitHub: https://github.com/RandyNorthrup/win32-mcp-server
 """
 
+import argparse
 import asyncio
 import json
 import logging
 import platform
 import sys
+from collections.abc import Sequence
 from typing import Any
 
 from mcp.server import Server
@@ -22,6 +24,7 @@ from mcp.types import ImageContent, TextContent, Tool
 from . import __version__
 from .config import config
 from .registry import registry
+from .utils.security import redact_arguments, safe_json_dumps
 
 # ---------------------------------------------------------------------------
 # Logging setup
@@ -62,6 +65,28 @@ async def handle_health_check(arguments: dict[str, Any]) -> dict[str, Any]:
         "python_version": sys.version.split()[0],
         "platform": platform.platform(),
         "architecture": platform.machine(),
+        "security_profile": config.security.profile,
+        "result_envelope": config.result_envelope,
+        "coordinate_validation": config.validate_coordinates,
+        "pyautogui_failsafe": config.automation.pyautogui_failsafe,
+        "dry_run": config.security.dry_run,
+        "tool_policy": {
+            "allowed_tools": len(config.security.allowed_tools),
+            "blocked_tools": len(config.security.blocked_tools),
+            "allowed_commands": len(config.security.allowed_commands),
+            "blocked_commands": len(config.security.blocked_commands),
+            "confirmation_token_required": bool(config.security.confirmation_token),
+        },
+        "capture_defaults": {
+            "format": config.capture.default_format,
+            "quality": config.capture.default_quality,
+            "scale": config.capture.default_scale,
+        },
+        "ocr_defaults": {
+            "lang": config.ocr.lang,
+            "preprocess": config.ocr.preprocess_mode,
+            "tesseract_path_configured": bool(config.ocr.tesseract_path),
+        },
     }
 
     # DPI / Scaling
@@ -140,7 +165,7 @@ async def list_tools() -> list[Tool]:
 async def call_tool(name: str, arguments: Any) -> list[TextContent | ImageContent]:
     """Dispatch a tool call through the registry."""
     args = arguments if isinstance(arguments, dict) else {}
-    logger.debug("Tool call: %s(%s)", name, json.dumps(args, default=str)[:500])
+    logger.debug("Tool call: %s(%s)", name, safe_json_dumps(redact_arguments(name, args), max_chars=500))
     return await registry.dispatch(name, args)
 
 
@@ -163,8 +188,27 @@ async def async_main() -> None:
         )
 
 
-def main() -> None:
+def _build_arg_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Windows Automation Inspector MCP server")
+    parser.add_argument("--version", action="store_true", help="Print server version and exit")
+    parser.add_argument("--list-tools", action="store_true", help="Print registered tool names as JSON and exit")
+    parser.add_argument("--health-check", action="store_true", help="Run health_check once as JSON and exit")
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> None:
     """Synchronous entry point for console_scripts."""
+    args = _build_arg_parser().parse_args(argv)
+    if args.version:
+        sys.stdout.write(f"{__version__}\n")
+        return
+    if args.list_tools:
+        sys.stdout.write(f"{json.dumps(registry.tool_names, indent=2)}\n")
+        return
+    if args.health_check:
+        sys.stdout.write(f"{json.dumps(asyncio.run(handle_health_check({})), indent=2, default=str)}\n")
+        return
+
     try:
         asyncio.run(async_main())
     except KeyboardInterrupt:

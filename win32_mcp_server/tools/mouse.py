@@ -21,13 +21,16 @@ from mcp.types import TextContent
 
 from ..config import config
 from ..registry import registry
+from ..utils.args import get_bool, get_enum, get_float, get_int
 from ..utils.coordinates import validate_coordinates
 from ..utils.errors import ToolError
 
 logger = logging.getLogger("win32-mcp")
+_MOUSE_BUTTONS = {"left", "right", "middle"}
+_MAX_SCROLL_AMOUNT = 10_000
 
-# Disable PyAutoGUI's failsafe (moving mouse to corner aborts)
-pyautogui.FAILSAFE = False
+# Configurable failsafe. Default preserves previous uninterrupted automation behavior.
+pyautogui.FAILSAFE = config.automation.pyautogui_failsafe
 
 
 def _validate_if_enabled(x: int, y: int, tool: str) -> None:
@@ -55,16 +58,23 @@ def _validate_if_enabled(x: int, y: int, tool: str) -> None:
             },
             "clicks": {
                 "type": "number",
+                "minimum": 1,
+                "maximum": 10,
                 "description": "Number of clicks (default: 1)",
+            },
+            "verify": {
+                "type": "boolean",
+                "description": "Verify cursor position after clicking (default: false)",
             },
         },
         "required": ["x", "y"],
     },
 )
 async def handle_click(arguments: dict[str, Any]) -> list[TextContent]:
-    x, y = int(arguments["x"]), int(arguments["y"])
-    button = arguments.get("button", "left")
-    clicks = int(arguments.get("clicks", 1))
+    x = get_int(arguments, "x", required=True)
+    y = get_int(arguments, "y", required=True)
+    button = get_enum(arguments, "button", _MOUSE_BUTTONS, default="left")
+    clicks = get_int(arguments, "clicks", default=1, min_value=1, max_value=10)
 
     _validate_if_enabled(x, y, "click")
 
@@ -72,7 +82,7 @@ async def handle_click(arguments: dict[str, Any]) -> list[TextContent]:
     await asyncio.sleep(config.automation.click_delay)
 
     # Optional post-click verification
-    if arguments.get("verify", False):
+    if get_bool(arguments, "verify", default=False):
         pos = pyautogui.position()
         dx, dy = abs(pos.x - x), abs(pos.y - y)
         if dx > 5 or dy > 5:
@@ -104,8 +114,9 @@ async def handle_click(arguments: dict[str, Any]) -> list[TextContent]:
     },
 )
 async def handle_double_click(arguments: dict[str, Any]) -> list[TextContent]:
-    x, y = int(arguments["x"]), int(arguments["y"])
-    button = arguments.get("button", "left")
+    x = get_int(arguments, "x", required=True)
+    y = get_int(arguments, "y", required=True)
+    button = get_enum(arguments, "button", _MOUSE_BUTTONS, default="left")
 
     _validate_if_enabled(x, y, "double_click")
 
@@ -128,7 +139,8 @@ async def handle_double_click(arguments: dict[str, Any]) -> list[TextContent]:
     },
 )
 async def handle_triple_click(arguments: dict[str, Any]) -> list[TextContent]:
-    x, y = int(arguments["x"]), int(arguments["y"])
+    x = get_int(arguments, "x", required=True)
+    y = get_int(arguments, "y", required=True)
     _validate_if_enabled(x, y, "triple_click")
 
     await asyncio.to_thread(pyautogui.click, x, y, clicks=3)
@@ -149,6 +161,8 @@ async def handle_triple_click(arguments: dict[str, Any]) -> list[TextContent]:
             "end_y": {"type": "number", "description": "End Y coordinate"},
             "duration": {
                 "type": "number",
+                "minimum": 0,
+                "maximum": 30,
                 "description": "Drag duration in seconds (default: 0.5)",
             },
             "button": {
@@ -161,12 +175,12 @@ async def handle_triple_click(arguments: dict[str, Any]) -> list[TextContent]:
     },
 )
 async def handle_drag(arguments: dict[str, Any]) -> list[TextContent]:
-    sx = int(arguments["start_x"])
-    sy = int(arguments["start_y"])
-    ex = int(arguments["end_x"])
-    ey = int(arguments["end_y"])
-    duration = arguments.get("duration", config.automation.drag_duration)
-    button = arguments.get("button", "left")
+    sx = get_int(arguments, "start_x", required=True)
+    sy = get_int(arguments, "start_y", required=True)
+    ex = get_int(arguments, "end_x", required=True)
+    ey = get_int(arguments, "end_y", required=True)
+    duration = get_float(arguments, "duration", default=config.automation.drag_duration, min_value=0, max_value=30)
+    button = get_enum(arguments, "button", _MOUSE_BUTTONS, default="left")
 
     _validate_if_enabled(sx, sy, "drag start")
     _validate_if_enabled(ex, ey, "drag end")
@@ -208,6 +222,8 @@ async def handle_mouse_position(arguments: dict[str, Any]) -> dict[str, int]:
             "y": {"type": "number", "description": "Target Y coordinate"},
             "duration": {
                 "type": "number",
+                "minimum": 0,
+                "maximum": 30,
                 "description": "Movement duration in seconds (default: 0.25)",
             },
         },
@@ -215,8 +231,9 @@ async def handle_mouse_position(arguments: dict[str, Any]) -> dict[str, int]:
     },
 )
 async def handle_mouse_move(arguments: dict[str, Any]) -> list[TextContent]:
-    x, y = int(arguments["x"]), int(arguments["y"])
-    duration = arguments.get("duration", config.automation.move_duration)
+    x = get_int(arguments, "x", required=True)
+    y = get_int(arguments, "y", required=True)
+    duration = get_float(arguments, "duration", default=config.automation.move_duration, min_value=0, max_value=30)
 
     _validate_if_enabled(x, y, "mouse_move")
 
@@ -233,6 +250,8 @@ async def handle_mouse_move(arguments: dict[str, Any]) -> list[TextContent]:
         "properties": {
             "amount": {
                 "type": "number",
+                "minimum": -_MAX_SCROLL_AMOUNT,
+                "maximum": _MAX_SCROLL_AMOUNT,
                 "description": "Scroll amount. Positive=up, negative=down.",
             },
             "x": {"type": "number", "description": "Optional X coordinate to scroll at"},
@@ -242,7 +261,7 @@ async def handle_mouse_move(arguments: dict[str, Any]) -> list[TextContent]:
     },
 )
 async def handle_scroll(arguments: dict[str, Any]) -> list[TextContent]:
-    amount = int(arguments["amount"])
+    amount = get_int(arguments, "amount", required=True, min_value=-_MAX_SCROLL_AMOUNT, max_value=_MAX_SCROLL_AMOUNT)
     x = arguments.get("x")
     y = arguments.get("y")
 
@@ -253,7 +272,8 @@ async def handle_scroll(arguments: dict[str, Any]) -> list[TextContent]:
         )
 
     if x is not None and y is not None:
-        ix, iy = int(x), int(y)
+        ix = get_int(arguments, "x", required=True)
+        iy = get_int(arguments, "y", required=True)
         _validate_if_enabled(ix, iy, "scroll")
         await asyncio.to_thread(pyautogui.scroll, amount, ix, iy)
         pos_text = f" at ({ix}, {iy})"
@@ -273,6 +293,8 @@ async def handle_scroll(arguments: dict[str, Any]) -> list[TextContent]:
         "properties": {
             "amount": {
                 "type": "number",
+                "minimum": -_MAX_SCROLL_AMOUNT,
+                "maximum": _MAX_SCROLL_AMOUNT,
                 "description": "Scroll amount. Positive=right, negative=left.",
             },
             "x": {"type": "number", "description": "Optional X coordinate to scroll at"},
@@ -282,7 +304,7 @@ async def handle_scroll(arguments: dict[str, Any]) -> list[TextContent]:
     },
 )
 async def handle_scroll_horizontal(arguments: dict[str, Any]) -> list[TextContent]:
-    amount = int(arguments["amount"])
+    amount = get_int(arguments, "amount", required=True, min_value=-_MAX_SCROLL_AMOUNT, max_value=_MAX_SCROLL_AMOUNT)
     x = arguments.get("x")
     y = arguments.get("y")
 
@@ -293,7 +315,8 @@ async def handle_scroll_horizontal(arguments: dict[str, Any]) -> list[TextConten
         )
 
     if x is not None and y is not None:
-        ix, iy = int(x), int(y)
+        ix = get_int(arguments, "x", required=True)
+        iy = get_int(arguments, "y", required=True)
         _validate_if_enabled(ix, iy, "scroll_horizontal")
         await asyncio.to_thread(pyautogui.hscroll, amount, ix, iy)
         pos_text = f" at ({ix}, {iy})"

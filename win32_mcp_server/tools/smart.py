@@ -27,9 +27,11 @@ from mcp.types import ImageContent, TextContent
 
 from ..config import PreprocessMode, config
 from ..registry import registry
+from ..utils.args import get_bool, get_enum, get_float, get_int, get_poll_interval, get_str, get_text, get_timeout
 from ..utils.coordinates import clamp_rect_to_virtual_screen, validate_coordinates
 from ..utils.errors import ToolError
 from ..utils.imaging import image_to_base64
+from ..utils.security import redact_text, truncate_text
 from ..utils.window_match import _fuzzy_ratio, find_window_strict
 from .capture import capture_region_impl, capture_screen_impl, capture_window_impl
 from .ocr import ocr_structured_impl
@@ -179,6 +181,66 @@ def _merge_bounding_boxes(words: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _content_has_error(text_parts: list[str]) -> bool:
+    """Return True if a dispatched tool returned structured error content."""
+    for text in text_parts:
+        try:
+            payload = json.loads(text)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict) and payload.get("error") is True:
+            return True
+    return False
+
+
+async def _try_uia_fill_field(
+    arguments: dict[str, Any],
+    label: str,
+    value: str,
+    direction: str,
+    window_title: str,
+) -> dict[str, Any] | None:
+    """Try UIA-backed field fill, return None when OCR fallback should run."""
+    if not get_bool(arguments, "prefer_uia", default=True) or not window_title:
+        return None
+
+    field_name = get_str(arguments, "field_name", default="")
+    automation_id = get_str(arguments, "automation_id", default="")
+
+    try:
+        from .uia import set_control_value_impl, set_labeled_control_value_impl
+
+        if field_name or automation_id:
+            uia_result = await set_control_value_impl(
+                window_title,
+                value,
+                name=field_name,
+                automation_id=automation_id,
+                control_type=get_str(arguments, "control_type", default=""),
+                exact_name=bool(field_name),
+            )
+        else:
+            uia_result = await set_labeled_control_value_impl(
+                window_title,
+                label,
+                value,
+                direction=direction,
+                exact_name=False,
+            )
+        return {
+            "label": label,
+            "value": redact_text(value),
+            "value_length": len(value),
+            "method": uia_result.get("method", "uia"),
+            "control": uia_result.get("control"),
+            "label_control": uia_result.get("label_control"),
+            "cleared": True,
+        }
+    except ToolError as exc:
+        logger.debug("UIA fill_field fallback to OCR: %s", exc)
+        return None
+
+
 # ===================================================================
 # Core implementation used by multiple smart tools
 # ===================================================================
@@ -261,19 +323,25 @@ async def find_text_impl(
             },
             "threshold": {
                 "type": "number",
+                "minimum": 0,
+                "maximum": 100,
                 "description": "Fuzzy match threshold 0-100 (default: 75)",
+            },
+            "prefer_uia": {
+                "type": "boolean",
+                "description": "When window_title is provided, try UI Automation before OCR (default: true)",
             },
         },
         "required": ["text"],
     },
 )
 async def handle_find_text_on_screen(arguments: dict[str, Any]) -> list[TextContent]:
-    text = arguments["text"]
+    text = get_text(arguments, "text")
     matches = await find_text_impl(
         text,
-        window_title=arguments.get("window_title"),
-        exact=arguments.get("exact", False),
-        threshold=arguments.get("threshold", 75),
+        window_title=get_str(arguments, "window_title", default="") or None,
+        exact=get_bool(arguments, "exact", default=False),
+        threshold=get_int(arguments, "threshold", default=75, min_value=0, max_value=100),
     )
 
     return [
@@ -309,6 +377,7 @@ async def handle_find_text_on_screen(arguments: dict[str, Any]) -> list[TextCont
             },
             "occurrence": {
                 "type": "number",
+                "minimum": 1,
                 "description": "Which occurrence to click: 1=first, 2=second, etc. (default: 1)",
             },
             "exact": {
@@ -317,6 +386,8 @@ async def handle_find_text_on_screen(arguments: dict[str, Any]) -> list[TextCont
             },
             "threshold": {
                 "type": "number",
+                "minimum": 0,
+                "maximum": 100,
                 "description": "Fuzzy match threshold 0-100 (default: 75)",
             },
         },
@@ -324,15 +395,39 @@ async def handle_find_text_on_screen(arguments: dict[str, Any]) -> list[TextCont
     },
 )
 async def handle_click_text(arguments: dict[str, Any]) -> dict[str, Any]:
-    text = arguments["text"]
-    button = arguments.get("button", "left")
-    occurrence = int(arguments.get("occurrence", 1))
+    text = get_text(arguments, "text")
+    button = get_enum(arguments, "button", {"left", "right", "middle"}, default="left")
+    occurrence = get_int(arguments, "occurrence", default=1, min_value=1)
+    window_title = get_str(arguments, "window_title", default="")
+    exact = get_bool(arguments, "exact", default=False)
+    threshold = get_int(arguments, "threshold", default=75, min_value=0, max_value=100)
+    prefer_uia = get_bool(arguments, "prefer_uia", default=True)
+    if occurrence < 1:
+        raise ToolError("occurrence must be 1 or greater")
+
+    if prefer_uia and window_title and button == "left":
+        try:
+            from .uia import click_control_impl
+
+            uia_result = await click_control_impl(
+                window_title,
+                name=text,
+                exact_name=exact,
+            )
+            return {
+                "clicked_text": text,
+                "method": uia_result.get("method", "uia"),
+                "control": uia_result.get("control"),
+                "total_matches": 1,
+            }
+        except ToolError as exc:
+            logger.debug("UIA click_text fallback to OCR: %s", exc)
 
     matches = await find_text_impl(
         text,
-        window_title=arguments.get("window_title"),
-        exact=arguments.get("exact", False),
-        threshold=arguments.get("threshold", 75),
+        window_title=window_title or None,
+        exact=exact,
+        threshold=threshold,
     )
 
     if not matches:
@@ -350,6 +445,8 @@ async def handle_click_text(arguments: dict[str, Any]) -> dict[str, Any]:
     match = matches[occurrence - 1]
     click_x = match["screen_center_x"]
     click_y = match["screen_center_y"]
+    if config.validate_coordinates:
+        validate_coordinates(click_x, click_y, "click_text")
 
     await asyncio.to_thread(pyautogui.click, click_x, click_y, button=button)
     await asyncio.sleep(config.automation.click_delay)
@@ -390,12 +487,12 @@ async def handle_click_text(arguments: dict[str, Any]) -> dict[str, Any]:
     },
 )
 async def handle_wait_for_text(arguments: dict[str, Any]) -> dict[str, Any]:
-    text = arguments["text"]
-    timeout = arguments.get("timeout_seconds", config.default_timeout)
-    interval = arguments.get("poll_interval", 0.5)
-    window_title = arguments.get("window_title")
-    exact = arguments.get("exact", False)
-    threshold = arguments.get("threshold", 75)
+    text = get_text(arguments, "text")
+    timeout = get_timeout(arguments)
+    interval = get_poll_interval(arguments)
+    window_title = get_str(arguments, "window_title", default="") or None
+    exact = get_bool(arguments, "exact", default=False)
+    threshold = get_int(arguments, "threshold", default=75, min_value=0, max_value=100)
 
     start = time.monotonic()
     attempts = 0
@@ -460,15 +557,15 @@ async def handle_wait_for_text(arguments: dict[str, Any]) -> dict[str, Any]:
     },
 )
 async def handle_assert_text_visible(arguments: dict[str, Any]) -> dict[str, Any]:
-    text = arguments["text"]
-    should_exist = arguments.get("should_exist", True)
-    window_title = arguments.get("window_title")
+    text = get_text(arguments, "text")
+    should_exist = get_bool(arguments, "should_exist", default=True)
+    window_title = get_str(arguments, "window_title", default="") or None
 
     matches = await find_text_impl(
         text,
         window_title=window_title,
-        exact=arguments.get("exact", False),
-        threshold=arguments.get("threshold", 75),
+        exact=get_bool(arguments, "exact", default=False),
+        threshold=get_int(arguments, "threshold", default=75, min_value=0, max_value=100),
     )
 
     found = len(matches) > 0
@@ -521,19 +618,28 @@ async def handle_assert_text_visible(arguments: dict[str, Any]) -> dict[str, Any
             },
             "offset_px": {
                 "type": "number",
+                "minimum": 0,
+                "maximum": 2000,
                 "description": "Pixel offset from label to click point (default: 50)",
             },
+            "prefer_uia": {"type": "boolean", "description": "Try UI Automation before OCR (default: true)"},
+            "field_name": {"type": "string", "description": "Optional UIA field/control name"},
+            "automation_id": {"type": "string", "description": "Optional UIA AutomationId"},
+            "control_type": {"type": "string", "description": "Optional UIA control type, e.g. edit or combobox"},
         },
         "required": ["label_text", "value"],
     },
 )
 async def handle_fill_field(arguments: dict[str, Any]) -> dict[str, Any]:
-    label = arguments["label_text"]
-    value = arguments["value"]
-    direction = arguments.get("direction", "right")
-    clear_first = arguments.get("clear_first", True)
-    offset = int(arguments.get("offset_px", 50))
-    window_title = arguments.get("window_title")
+    label = get_text(arguments, "label_text")
+    value = get_text(arguments, "value")
+    direction = get_enum(arguments, "direction", {"right", "below"}, default="right")
+    clear_first = get_bool(arguments, "clear_first", default=True)
+    offset = get_int(arguments, "offset_px", default=50, min_value=0, max_value=2000)
+    window_title = get_str(arguments, "window_title", default="")
+    uia_result = await _try_uia_fill_field(arguments, label, value, direction, window_title)
+    if uia_result is not None:
+        return uia_result
 
     # Find the label
     matches = await find_text_impl(label, window_title=window_title)
@@ -554,6 +660,8 @@ async def handle_fill_field(arguments: dict[str, Any]) -> dict[str, Any]:
         click_y = match["screen_center_y"]
 
     # Click the field
+    if config.validate_coordinates:
+        validate_coordinates(click_x, click_y, "fill_field")
     await asyncio.to_thread(pyautogui.click, click_x, click_y)
     await asyncio.sleep(0.15)
 
@@ -588,7 +696,8 @@ async def handle_fill_field(arguments: dict[str, Any]) -> dict[str, Any]:
 
     return {
         "label": label,
-        "value": value,
+        "value": redact_text(value),
+        "value_length": len(value),
         "label_found_at": {"x": match["screen_center_x"], "y": match["screen_center_y"]},
         "clicked_at": {"x": click_x, "y": click_y},
         "direction": direction,
@@ -615,11 +724,11 @@ async def handle_fill_field(arguments: dict[str, Any]) -> dict[str, Any]:
     },
 )
 async def handle_get_window_snapshot(arguments: dict[str, Any]) -> list[TextContent | ImageContent]:
-    window_title = arguments["window_title"]
-    fmt = arguments.get("format", config.capture.default_format)
-    quality = arguments.get("quality", config.capture.default_quality)
-    scale = arguments.get("scale", config.capture.default_scale)
-    include_ocr = arguments.get("include_ocr", True)
+    window_title = get_text(arguments, "window_title")
+    fmt = get_enum(arguments, "format", {"png", "jpeg", "webp"}, default=config.capture.default_format)
+    quality = get_int(arguments, "quality", default=config.capture.default_quality, min_value=1, max_value=100)
+    scale = get_float(arguments, "scale", default=config.capture.default_scale, min_value=0.1, max_value=1.0)
+    include_ocr = get_bool(arguments, "include_ocr", default=True)
 
     # Capture window
     img, win_info = await capture_window_impl(window_title)
@@ -675,9 +784,10 @@ async def handle_get_window_snapshot(arguments: dict[str, Any]) -> list[TextCont
     },
 )
 async def handle_right_click_menu(arguments: dict[str, Any]) -> dict[str, Any]:
-    x, y = int(arguments["x"]), int(arguments["y"])
-    menu_w = int(arguments.get("menu_width", 300))
-    menu_h = int(arguments.get("menu_height", 400))
+    x = get_int(arguments, "x", required=True)
+    y = get_int(arguments, "y", required=True)
+    menu_w = get_int(arguments, "menu_width", default=300, min_value=1, max_value=4000)
+    menu_h = get_int(arguments, "menu_height", default=400, min_value=1, max_value=4000)
 
     if config.validate_coordinates:
         validate_coordinates(x, y, "right_click_menu")
@@ -756,6 +866,8 @@ async def handle_right_click_menu(arguments: dict[str, Any]) -> dict[str, Any]:
         "properties": {
             "steps": {
                 "type": "array",
+                "minItems": 1,
+                "maxItems": config.limits.max_sequence_steps,
                 "items": {
                     "type": "object",
                     "properties": {
@@ -763,6 +875,8 @@ async def handle_right_click_menu(arguments: dict[str, Any]) -> dict[str, Any]:
                         "args": {"type": "object", "description": "Tool arguments"},
                         "delay_ms": {
                             "type": "number",
+                            "minimum": 0,
+                            "maximum": 30000,
                             "description": "Delay after this step in milliseconds (default: 0)",
                         },
                     },
@@ -780,19 +894,35 @@ async def handle_right_click_menu(arguments: dict[str, Any]) -> dict[str, Any]:
 )
 async def handle_execute_sequence(arguments: dict[str, Any]) -> list[TextContent]:
     steps = arguments["steps"]
-    stop_on_error = arguments.get("stop_on_error", True)
+    stop_on_error = get_bool(arguments, "stop_on_error", default=True)
 
-    if not steps:
+    if not isinstance(steps, list) or not steps:
         raise ToolError("No steps provided")
 
-    if len(steps) > 50:
-        raise ToolError("Maximum 50 steps per sequence")
+    if len(steps) > config.limits.max_sequence_steps:
+        raise ToolError(f"Maximum {config.limits.max_sequence_steps} steps per sequence")
 
     results: list[dict[str, Any]] = []
 
     for i, step in enumerate(steps):
-        tool_name = step.get("tool", "")
+        if not isinstance(step, dict):
+            raise ToolError(f"Step {i + 1} must be an object")
+        tool_name = get_str(step, "tool", required=True, min_length=1, max_length=128)
         tool_args = step.get("args", {})
+        if not isinstance(tool_args, dict):
+            raise ToolError(f"Step {i + 1} args must be an object")
+        if tool_name == "execute_sequence":
+            results.append(
+                {
+                    "step": i + 1,
+                    "tool": tool_name,
+                    "error": "Nested execute_sequence is not allowed",
+                    "success": False,
+                }
+            )
+            if stop_on_error:
+                break
+            continue
 
         handler = registry.get_handler(tool_name)
         if not handler:
@@ -808,34 +938,30 @@ async def handle_execute_sequence(arguments: dict[str, Any]) -> list[TextContent
             continue
 
         try:
-            result = await handler(tool_args)
+            result = await registry.dispatch(tool_name, tool_args)
 
             # Extract text content from MCP response
             text_parts = []
             has_image = False
 
-            if isinstance(result, list):
-                for item in result:
-                    if isinstance(item, TextContent):
-                        text_parts.append(item.text)
-                    elif isinstance(item, ImageContent):
-                        has_image = True
-            elif isinstance(result, dict):
-                text_parts.append(json.dumps(result, default=str))
-            elif isinstance(result, TextContent):
-                text_parts.append(result.text)
-            else:
-                text_parts.append(str(result))
+            for item in result:
+                if isinstance(item, TextContent):
+                    text_parts.append(truncate_text(item.text, max_chars=config.limits.max_text_chars))
+                elif isinstance(item, ImageContent):
+                    has_image = True
 
+            step_success = not _content_has_error(text_parts)
             results.append(
                 {
                     "step": i + 1,
                     "tool": tool_name,
                     "result": "\n".join(text_parts),
                     "has_image": has_image,
-                    "success": True,
+                    "success": step_success,
                 }
             )
+            if not step_success and stop_on_error:
+                break
 
         except Exception as exc:
             results.append(
@@ -850,10 +976,9 @@ async def handle_execute_sequence(arguments: dict[str, Any]) -> list[TextContent
                 break
 
         # Inter-step delay (capped at 30 s to prevent abuse)
-        delay_ms = step.get("delay_ms", 0)
+        delay_ms = get_int(step, "delay_ms", default=0, min_value=0, max_value=30_000)
         if delay_ms > 0:
-            capped_ms = min(delay_ms, 30_000)
-            await asyncio.sleep(capped_ms / 1000.0)
+            await asyncio.sleep(delay_ms / 1000.0)
 
     completed = sum(1 for r in results if r.get("success"))
     failed = sum(1 for r in results if not r.get("success", True))

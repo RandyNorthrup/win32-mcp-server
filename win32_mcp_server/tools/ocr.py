@@ -10,6 +10,7 @@ Tools:
 """
 
 import asyncio
+import copy
 import hashlib
 import json
 import logging
@@ -22,6 +23,7 @@ from PIL import Image
 
 from ..config import VALID_PREPROCESS_MODES, PreprocessMode, config
 from ..registry import registry
+from ..utils.args import get_int, get_region, get_str
 from ..utils.coordinates import validate_region
 from ..utils.errors import ToolError
 from ..utils.imaging import (
@@ -59,7 +61,7 @@ def _cache_get(key: tuple[str, str, str, str]) -> Any | None:
         del _ocr_cache[key]
         return None
     logger.debug("OCR cache hit for %s", key[:3])
-    return value
+    return copy.deepcopy(value)
 
 
 def _cache_put(key: tuple[str, str, str, str], value: Any) -> None:
@@ -69,7 +71,7 @@ def _cache_put(key: tuple[str, str, str, str], value: Any) -> None:
     stale = [k for k, (ts, _) in _ocr_cache.items() if now - ts > _OCR_CACHE_TTL]
     for k in stale:
         del _ocr_cache[k]
-    _ocr_cache[key] = (now, value)
+    _ocr_cache[key] = (now, copy.deepcopy(value))
 
 
 # ===================================================================
@@ -94,6 +96,20 @@ def _validate_preprocess(value: str | None) -> PreprocessMode | None:
             suggestion=f"Valid modes: {', '.join(sorted(VALID_PREPROCESS_MODES))}",
         )
     return value  # type: ignore[return-value]
+
+
+def _lang_arg(arguments: dict[str, Any]) -> str | None:
+    return get_str(arguments, "lang", default="", max_length=128) or None
+
+
+def _preprocess_arg(arguments: dict[str, Any]) -> PreprocessMode | None:
+    return _validate_preprocess(get_str(arguments, "preprocess", default="") or None)
+
+
+def _confidence_arg(arguments: dict[str, Any]) -> int | None:
+    if "confidence_threshold" not in arguments or arguments["confidence_threshold"] is None:
+        return None
+    return get_int(arguments, "confidence_threshold", min_value=0, max_value=100)
 
 
 # ===================================================================
@@ -370,8 +386,8 @@ async def handle_ocr_screen(arguments: dict[str, Any]) -> list[TextContent]:
     img = await capture_screen_impl()
     text = await ocr_plain_impl(
         img,
-        lang=arguments.get("lang"),
-        preprocess=_validate_preprocess(arguments.get("preprocess")),
+        lang=_lang_arg(arguments),
+        preprocess=_preprocess_arg(arguments),
     )
     return [TextContent(type="text", text=f"OCR Result ({img.width}x{img.height}):\n{text}")]
 
@@ -384,8 +400,8 @@ async def handle_ocr_screen(arguments: dict[str, Any]) -> list[TextContent]:
         "properties": {
             "x": {"type": "number", "description": "Left edge of region"},
             "y": {"type": "number", "description": "Top edge of region"},
-            "width": {"type": "number", "description": "Region width"},
-            "height": {"type": "number", "description": "Region height"},
+            "width": {"type": "number", "minimum": 1, "description": "Region width"},
+            "height": {"type": "number", "minimum": 1, "description": "Region height"},
             "lang": {"type": "string"},
             "preprocess": {
                 "type": "string",
@@ -396,8 +412,7 @@ async def handle_ocr_screen(arguments: dict[str, Any]) -> list[TextContent]:
     },
 )
 async def handle_ocr_region(arguments: dict[str, Any]) -> list[TextContent]:
-    x, y = int(arguments["x"]), int(arguments["y"])
-    w, h = int(arguments["width"]), int(arguments["height"])
+    x, y, w, h = get_region(arguments)
 
     if config.validate_coordinates:
         x, y, w, h = validate_region(x, y, w, h)
@@ -405,8 +420,8 @@ async def handle_ocr_region(arguments: dict[str, Any]) -> list[TextContent]:
     img = await capture_region_impl(x, y, w, h)
     text = await ocr_plain_impl(
         img,
-        lang=arguments.get("lang"),
-        preprocess=_validate_preprocess(arguments.get("preprocess")),
+        lang=_lang_arg(arguments),
+        preprocess=_preprocess_arg(arguments),
     )
     return [TextContent(type="text", text=f"OCR Region ({x},{y} {w}x{h}):\n{text}")]
 
@@ -428,11 +443,12 @@ async def handle_ocr_region(arguments: dict[str, Any]) -> list[TextContent]:
     },
 )
 async def handle_ocr_window(arguments: dict[str, Any]) -> list[TextContent]:
-    img, win_info = await capture_window_impl(arguments["window_title"])
+    window_title = get_str(arguments, "window_title", required=True, min_length=1, max_length=512)
+    img, win_info = await capture_window_impl(window_title)
     text = await ocr_plain_impl(
         img,
-        lang=arguments.get("lang"),
-        preprocess=_validate_preprocess(arguments.get("preprocess")),
+        lang=_lang_arg(arguments),
+        preprocess=_preprocess_arg(arguments),
     )
     return [
         TextContent(
@@ -455,6 +471,8 @@ async def handle_ocr_window(arguments: dict[str, Any]) -> list[TextContent]:
             },
             "confidence_threshold": {
                 "type": "number",
+                "minimum": 0,
+                "maximum": 100,
                 "description": "Minimum confidence 0-100 to include (default: 60)",
             },
         },
@@ -464,9 +482,9 @@ async def handle_ocr_screen_structured(arguments: dict[str, Any]) -> list[TextCo
     img = await capture_screen_impl()
     results = await ocr_structured_impl(
         img,
-        lang=arguments.get("lang"),
-        preprocess=_validate_preprocess(arguments.get("preprocess")),
-        confidence_threshold=arguments.get("confidence_threshold"),
+        lang=_lang_arg(arguments),
+        preprocess=_preprocess_arg(arguments),
+        confidence_threshold=_confidence_arg(arguments),
     )
     return [
         TextContent(
@@ -491,21 +509,20 @@ async def handle_ocr_screen_structured(arguments: dict[str, Any]) -> list[TextCo
         "properties": {
             "x": {"type": "number"},
             "y": {"type": "number"},
-            "width": {"type": "number"},
-            "height": {"type": "number"},
+            "width": {"type": "number", "minimum": 1},
+            "height": {"type": "number", "minimum": 1},
             "lang": {"type": "string"},
             "preprocess": {
                 "type": "string",
                 "enum": ["auto", "light_bg", "dark_bg", "high_contrast", "none"],
             },
-            "confidence_threshold": {"type": "number"},
+            "confidence_threshold": {"type": "number", "minimum": 0, "maximum": 100},
         },
         "required": ["x", "y", "width", "height"],
     },
 )
 async def handle_ocr_region_structured(arguments: dict[str, Any]) -> list[TextContent]:
-    x, y = int(arguments["x"]), int(arguments["y"])
-    w, h = int(arguments["width"]), int(arguments["height"])
+    x, y, w, h = get_region(arguments)
 
     if config.validate_coordinates:
         x, y, w, h = validate_region(x, y, w, h)
@@ -513,9 +530,9 @@ async def handle_ocr_region_structured(arguments: dict[str, Any]) -> list[TextCo
     img = await capture_region_impl(x, y, w, h)
     results = await ocr_structured_impl(
         img,
-        lang=arguments.get("lang"),
-        preprocess=_validate_preprocess(arguments.get("preprocess")),
-        confidence_threshold=arguments.get("confidence_threshold"),
+        lang=_lang_arg(arguments),
+        preprocess=_preprocess_arg(arguments),
+        confidence_threshold=_confidence_arg(arguments),
     )
 
     # Offset coordinates to screen space

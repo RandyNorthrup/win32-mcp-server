@@ -1,7 +1,7 @@
 {
   "name": "win32-mcp-inspector",
   "displayName": "Windows Automation Inspector (MCP)",
-  "version": "2.5.1",
+  "version": "2.6.0",
   "publisher": "RandyNorthrup",
   "description": "Enterprise-grade Windows automation MCP server with 53 tools — click_text, wait_for_text, structured OCR, UI Automation, and more",
   "categories": [
@@ -48,56 +48,62 @@
         },
         "win32-mcp.autoInstall": {
           "type": "boolean",
-          "default": true,
-          "description": "Automatically install win32-mcp-server Python package if not found"
+          "default": false,
+          "description": "Prompt to install pinned win32-mcp-server from PyPI if not found"
         },
         "win32-mcp.tesseractPath": {
           "type": "string",
           "default": "",
-          "description": "Custom path to Tesseract OCR executable (leave empty to use PATH)"
+          "description": "Custom path to Tesseract OCR executable. For MCP clients, set WIN32_MCP_TESSERACT_PATH."
         },
         "win32-mcp.ocrLanguage": {
           "type": "string",
           "default": "eng",
-          "description": "Default OCR language (e.g. 'eng', 'fra', 'eng+fra')"
+          "description": "Default OCR language. For MCP clients, set WIN32_MCP_OCR_LANGUAGE."
         },
         "win32-mcp.ocrPreprocess": {
           "type": "string",
           "enum": ["auto", "light_bg", "dark_bg", "high_contrast", "none"],
           "default": "auto",
-          "description": "Default OCR preprocessing mode"
+          "description": "Default OCR preprocessing mode. For MCP clients, set WIN32_MCP_OCR_PREPROCESS."
         },
         "win32-mcp.screenshotFormat": {
           "type": "string",
           "enum": ["png", "jpeg", "webp"],
           "default": "png",
-          "description": "Default screenshot output format"
+          "description": "Default screenshot output format. For MCP clients, set WIN32_MCP_CAPTURE_FORMAT."
         },
         "win32-mcp.screenshotQuality": {
           "type": "number",
           "default": 85,
           "minimum": 1,
           "maximum": 100,
-          "description": "JPEG/WebP quality (1-100)"
+          "description": "JPEG/WebP quality (1-100). For MCP clients, set WIN32_MCP_CAPTURE_QUALITY."
         },
         "win32-mcp.screenshotScale": {
           "type": "number",
           "default": 1.0,
           "minimum": 0.1,
           "maximum": 1.0,
-          "description": "Screenshot scale factor (0.1-1.0)"
+          "description": "Screenshot scale factor (0.1-1.0). For MCP clients, set WIN32_MCP_CAPTURE_SCALE."
         },
         "win32-mcp.coordinateValidation": {
           "type": "boolean",
           "default": true,
-          "description": "Validate click/move coordinates are within screen bounds"
+          "description": "Validate click/move coordinates are within monitor bounds. For MCP clients, set WIN32_MCP_COORDINATE_VALIDATION."
         },
         "win32-mcp.debugLogging": {
           "type": "boolean",
           "default": false,
-          "description": "Enable verbose debug logging"
+          "description": "Enable verbose debug logging. For MCP clients, set WIN32_MCP_DEBUG_LOGGING."
         }
       }
-    }
+    },
+    "commands": [
+      {
+        "command": "win32-mcp.openSettings",
+        "title": "Windows MCP: Open Settings"
+      }
+    ]
   }
 }

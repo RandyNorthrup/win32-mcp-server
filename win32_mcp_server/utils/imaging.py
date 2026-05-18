@@ -11,14 +11,25 @@ Handles:
 import base64
 import io
 import logging
+import os
+import shutil
+import time
+from pathlib import Path
 from typing import Any
 
 import numpy as np
 from PIL import Image, ImageFilter, ImageOps
 
-from ..config import PreprocessMode
+from ..config import VALID_CAPTURE_FORMATS, PreprocessMode, config
+from .errors import ToolError
 
 logger = logging.getLogger("win32-mcp")
+_TESSERACT_CACHE_TTL = 60.0
+_tesseract_cache: tuple[float, tuple[bool, str]] | None = None
+_TESSERACT_DEFAULT_PATHS = (
+    Path("C:/Program Files/Tesseract-OCR/tesseract.exe"),
+    Path("C:/Program Files (x86)/Tesseract-OCR/tesseract.exe"),
+)
 
 
 # ---------------------------------------------------------------------------
@@ -127,15 +138,27 @@ def image_to_base64(
     Returns:
         (base64_data, mime_type, size_bytes)
     """
+    fmt_lower = fmt.lower().strip()
+    if fmt_lower == "jpg":
+        fmt_lower = "jpeg"
+    if fmt_lower not in VALID_CAPTURE_FORMATS:
+        raise ToolError(
+            f"Invalid image format: '{fmt}'",
+            suggestion=f"Valid formats: {', '.join(sorted(VALID_CAPTURE_FORMATS))}",
+        )
+    if quality < 1 or quality > 100:
+        raise ToolError("Image quality must be between 1 and 100")
+    if scale < 0.1 or scale > 1.0:
+        raise ToolError("Image scale must be between 0.1 and 1.0")
+
     if 0 < scale < 1.0:
         new_w = max(1, int(img.width * scale))
         new_h = max(1, int(img.height * scale))
         img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
 
     buf = io.BytesIO()
-    fmt_lower = fmt.lower().strip()
 
-    if fmt_lower in ("jpg", "jpeg"):
+    if fmt_lower == "jpeg":
         img = img.convert("RGB")  # drop alpha
         img.save(buf, format="JPEG", quality=quality, optimize=True)
         mime = "image/jpeg"
@@ -161,20 +184,55 @@ def check_tesseract() -> tuple[bool, str]:
     Returns:
         (is_available, version_string_or_error_message)
     """
+    global _tesseract_cache
+    now = time.monotonic()
+    if _tesseract_cache is not None:
+        ts, cached = _tesseract_cache
+        if now - ts < _TESSERACT_CACHE_TTL:
+            return cached
+
     try:
         import pytesseract
 
+        tesseract_cmd = discover_tesseract_cmd()
+        if tesseract_cmd:
+            pytesseract.pytesseract.tesseract_cmd = tesseract_cmd
         version = pytesseract.get_tesseract_version()
-        return True, str(version)
+        result = (True, str(version))
     except Exception as exc:
         name = type(exc).__name__
         if "NotFound" in name or "not installed" in str(exc).lower():
-            return False, (
-                "Tesseract OCR is not installed. "
-                "Download from https://github.com/UB-Mannheim/tesseract/wiki "
-                "and ensure it is on PATH."
+            result = (
+                False,
+                "Tesseract OCR is not installed. Install it with winget "
+                "`winget install --id tesseract-ocr.tesseract --exact` "
+                "or set WIN32_MCP_TESSERACT_PATH.",
             )
-        return False, f"Tesseract error: {exc}"
+        else:
+            result = (False, f"Tesseract error: {exc}")
+
+    _tesseract_cache = (now, result)
+    return result
+
+
+def discover_tesseract_cmd() -> str:
+    """Return best Tesseract executable path, including common Windows installs."""
+    candidates: list[str] = []
+    if config.ocr.tesseract_path:
+        candidates.append(config.ocr.tesseract_path)
+    env_cmd = os.getenv("TESSERACT_CMD")
+    if env_cmd:
+        candidates.append(env_cmd)
+    path_cmd = shutil.which("tesseract")
+    if path_cmd:
+        candidates.append(path_cmd)
+    candidates.extend(str(path) for path in _TESSERACT_DEFAULT_PATHS)
+
+    for candidate in candidates:
+        normalized = candidate.strip().strip('"').strip("'")
+        if Path(normalized).is_file():
+            return normalized
+    return path_cmd or ""
 
 
 # ---------------------------------------------------------------------------

@@ -17,9 +17,47 @@ from mcp.types import TextContent
 
 from ..config import config
 from ..registry import registry
+from ..utils.args import get_enum, get_float, get_str, get_text
 from ..utils.errors import ToolError
+from ..utils.security import redact_text
 
 logger = logging.getLogger("win32-mcp")
+_TYPE_METHODS = {"auto", "type", "paste"}
+_MAX_KEY_COMBO_CHARS = 128
+_MAX_HOTKEY_KEYS = 8
+_VALID_KEYS = {str(key).lower() for key in pyautogui.KEYBOARD_KEYS}
+_KEY_ALIASES = {
+    "control": "ctrl",
+    "delete": "del",
+    "escape": "esc",
+    "page_down": "pagedown",
+    "page_up": "pageup",
+    "pgdn": "pagedown",
+    "pgup": "pageup",
+    "return": "enter",
+    "windows": "win",
+}
+
+
+def _normalize_key(key: str) -> str:
+    normalized = _KEY_ALIASES.get(key.strip().lower(), key.strip().lower())
+    if not normalized:
+        raise ToolError("Empty key name")
+    if normalized not in _VALID_KEYS:
+        raise ToolError(
+            f"Invalid key name: '{key}'",
+            suggestion="Use a PyAutoGUI key name such as enter, tab, esc, ctrl, shift, alt, or f1.",
+        )
+    return normalized
+
+
+def _parse_key_combo(keys_raw: str) -> list[str]:
+    parts = [part.strip() for part in keys_raw.split("+") if part.strip()]
+    if not parts:
+        raise ToolError(f"Invalid key combination: '{keys_raw}'")
+    if len(parts) > _MAX_HOTKEY_KEYS:
+        raise ToolError(f"Too many hotkey keys (max {_MAX_HOTKEY_KEYS})")
+    return [_normalize_key(part) for part in parts]
 
 
 @registry.register(
@@ -28,9 +66,11 @@ logger = logging.getLogger("win32-mcp")
     {
         "type": "object",
         "properties": {
-            "text": {"type": "string", "description": "Text to type"},
+            "text": {"type": "string", "minLength": 1, "maxLength": 20000, "description": "Text to type"},
             "interval": {
                 "type": "number",
+                "minimum": 0,
+                "maximum": 1,
                 "description": "Seconds between keystrokes (default: 0.01)",
             },
             "method": {
@@ -47,12 +87,9 @@ logger = logging.getLogger("win32-mcp")
     },
 )
 async def handle_type_text(arguments: dict[str, Any]) -> list[TextContent]:
-    text = arguments["text"]
-    interval = arguments.get("interval", config.automation.type_interval)
-    method = arguments.get("method", "auto")
-
-    if not text:
-        raise ToolError("Empty text — nothing to type")
+    text = get_text(arguments, "text")
+    interval = get_float(arguments, "interval", default=config.automation.type_interval, min_value=0.0, max_value=1.0)
+    method = get_enum(arguments, "method", _TYPE_METHODS, default="auto")
 
     # Decide method
     use_paste = method == "paste" or (method == "auto" and not text.isascii())
@@ -76,9 +113,9 @@ async def handle_type_text(arguments: dict[str, Any]) -> list[TextContent]:
         except Exception as exc:
             logger.debug("Could not restore clipboard: %s", exc)
 
-        return [TextContent(type="text", text=f"Typed (pasted): {text[:200]}")]
+        return [TextContent(type="text", text=f"Typed (pasted): {redact_text(text)}")]
     await asyncio.to_thread(pyautogui.write, text, interval=interval)
-    return [TextContent(type="text", text=f"Typed: {text[:200]}")]
+    return [TextContent(type="text", text=f"Typed: {redact_text(text)}")]
 
 
 @registry.register(
@@ -89,6 +126,8 @@ async def handle_type_text(arguments: dict[str, Any]) -> list[TextContent]:
         "properties": {
             "keys": {
                 "type": "string",
+                "minLength": 1,
+                "maxLength": _MAX_KEY_COMBO_CHARS,
                 "description": (
                     "Key name or combo separated by '+'. Examples: 'enter', 'tab', 'ctrl+c', 'alt+f4', 'ctrl+shift+s'"
                 ),
@@ -98,19 +137,15 @@ async def handle_type_text(arguments: dict[str, Any]) -> list[TextContent]:
     },
 )
 async def handle_press_key(arguments: dict[str, Any]) -> list[TextContent]:
-    keys_raw = arguments["keys"].strip()
+    keys_raw = get_str(arguments, "keys", required=True, min_length=1, max_length=_MAX_KEY_COMBO_CHARS).strip()
     if not keys_raw:
         raise ToolError("Empty key string")
 
-    keys_lower = keys_raw.lower()
-
-    if "+" in keys_lower:
-        parts = [k.strip() for k in keys_lower.split("+") if k.strip()]
-        if not parts:
-            raise ToolError(f"Invalid key combination: '{keys_raw}'")
+    parts = _parse_key_combo(keys_raw)
+    if len(parts) > 1:
         await asyncio.to_thread(pyautogui.hotkey, *parts)
     else:
-        await asyncio.to_thread(pyautogui.press, keys_lower)
+        await asyncio.to_thread(pyautogui.press, parts[0])
 
     return [TextContent(type="text", text=f"Pressed: {keys_raw}")]
 
@@ -124,6 +159,8 @@ async def handle_press_key(arguments: dict[str, Any]) -> list[TextContent]:
             "keys": {
                 "type": "array",
                 "items": {"type": "string"},
+                "minItems": 1,
+                "maxItems": _MAX_HOTKEY_KEYS,
                 "description": "Array of key names, e.g. ['ctrl', 'shift', 's']",
             },
         },
@@ -132,10 +169,19 @@ async def handle_press_key(arguments: dict[str, Any]) -> list[TextContent]:
 )
 async def handle_hotkey(arguments: dict[str, Any]) -> list[TextContent]:
     keys = arguments["keys"]
-    if not keys:
+    if not isinstance(keys, list) or not keys:
         raise ToolError("Empty key list")
+    if len(keys) > _MAX_HOTKEY_KEYS:
+        raise ToolError(f"Too many hotkey keys (max {_MAX_HOTKEY_KEYS})")
 
-    cleaned = [k.strip().lower() for k in keys if k.strip()]
+    cleaned: list[str] = []
+    for idx, key in enumerate(keys):
+        if not isinstance(key, str):
+            raise ToolError(f"Hotkey item {idx} must be a string")
+        if key.strip():
+            cleaned.append(_normalize_key(key))
+    if not cleaned:
+        raise ToolError("Empty key list")
     await asyncio.to_thread(pyautogui.hotkey, *cleaned)
 
     return [TextContent(type="text", text=f"Hotkey: {'+'.join(cleaned)}")]

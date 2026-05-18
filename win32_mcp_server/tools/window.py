@@ -24,6 +24,7 @@ from mcp.types import TextContent
 
 from ..config import config
 from ..registry import registry
+from ..utils.args import get_bool, get_int, get_poll_interval, get_str, get_timeout
 from ..utils.errors import ToolError
 from ..utils.window_match import (
     find_window,
@@ -33,6 +34,12 @@ from ..utils.window_match import (
 )
 
 logger = logging.getLogger("win32-mcp")
+_MAX_TITLE_CHARS = 512
+_MAX_WINDOW_DIMENSION = 32768
+
+
+def _window_title(arguments: dict[str, Any]) -> str:
+    return get_str(arguments, "window_title", required=True, min_length=1, max_length=_MAX_TITLE_CHARS)
 
 
 # ===================================================================
@@ -77,7 +84,7 @@ async def _retry_window_op(op_name: str, func: Any, *args: Any, **kwargs: Any) -
     },
 )
 async def handle_list_windows(arguments: dict[str, Any]) -> list[TextContent]:
-    filter_text = arguments.get("filter", "").lower().strip()
+    filter_text = get_str(arguments, "filter", default="", max_length=_MAX_TITLE_CHARS).lower().strip()
 
     windows = get_all_windows_deduped()
     results = []
@@ -125,7 +132,7 @@ async def handle_list_windows(arguments: dict[str, Any]) -> list[TextContent]:
     },
 )
 async def handle_get_window_info(arguments: dict[str, Any]) -> dict[str, Any]:
-    win = find_window_strict(arguments["window_title"])
+    win = find_window_strict(_window_title(arguments))
     details = get_window_details(win)
 
     # Add process info if PID available
@@ -151,12 +158,13 @@ async def handle_get_window_info(arguments: dict[str, Any]) -> dict[str, Any]:
         "type": "object",
         "properties": {
             "window_title": {"type": "string", "description": "Full or partial window title"},
+            "verify": {"type": "boolean", "description": "Verify foreground window after focus"},
         },
         "required": ["window_title"],
     },
 )
 async def handle_focus_window(arguments: dict[str, Any]) -> list[TextContent]:
-    win = find_window_strict(arguments["window_title"])
+    win = find_window_strict(_window_title(arguments))
 
     if win.isMinimized:
         await _retry_window_op("restore", win.restore)
@@ -166,7 +174,7 @@ async def handle_focus_window(arguments: dict[str, Any]) -> list[TextContent]:
     await asyncio.sleep(0.2)
 
     # Verify focus if requested
-    if arguments.get("verify", False):
+    if get_bool(arguments, "verify", default=False):
         import pygetwindow as gw
 
         fg = gw.getActiveWindow()
@@ -192,7 +200,7 @@ async def handle_focus_window(arguments: dict[str, Any]) -> list[TextContent]:
     },
 )
 async def handle_close_window(arguments: dict[str, Any]) -> list[TextContent]:
-    win = find_window_strict(arguments["window_title"])
+    win = find_window_strict(_window_title(arguments))
     title = win.title
     await _retry_window_op("close", win.close)
     return [TextContent(type="text", text=f"Closed: {title}")]
@@ -210,7 +218,7 @@ async def handle_close_window(arguments: dict[str, Any]) -> list[TextContent]:
     },
 )
 async def handle_minimize_window(arguments: dict[str, Any]) -> list[TextContent]:
-    win = find_window_strict(arguments["window_title"])
+    win = find_window_strict(_window_title(arguments))
     await _retry_window_op("minimize", win.minimize)
     return [TextContent(type="text", text=f"Minimized: {win.title}")]
 
@@ -227,7 +235,7 @@ async def handle_minimize_window(arguments: dict[str, Any]) -> list[TextContent]
     },
 )
 async def handle_maximize_window(arguments: dict[str, Any]) -> list[TextContent]:
-    win = find_window_strict(arguments["window_title"])
+    win = find_window_strict(_window_title(arguments))
     await _retry_window_op("maximize", win.maximize)
     return [TextContent(type="text", text=f"Maximized: {win.title}")]
 
@@ -244,7 +252,7 @@ async def handle_maximize_window(arguments: dict[str, Any]) -> list[TextContent]
     },
 )
 async def handle_restore_window(arguments: dict[str, Any]) -> list[TextContent]:
-    win = find_window_strict(arguments["window_title"])
+    win = find_window_strict(_window_title(arguments))
     await _retry_window_op("restore", win.restore)
     return [TextContent(type="text", text=f"Restored: {win.title}")]
 
@@ -256,21 +264,26 @@ async def handle_restore_window(arguments: dict[str, Any]) -> list[TextContent]:
         "type": "object",
         "properties": {
             "window_title": {"type": "string", "description": "Full or partial window title"},
-            "width": {"type": "number", "description": "New width in pixels"},
-            "height": {"type": "number", "description": "New height in pixels"},
+            "width": {
+                "type": "number",
+                "minimum": 100,
+                "maximum": _MAX_WINDOW_DIMENSION,
+                "description": "New width in pixels",
+            },
+            "height": {
+                "type": "number",
+                "minimum": 50,
+                "maximum": _MAX_WINDOW_DIMENSION,
+                "description": "New height in pixels",
+            },
         },
         "required": ["window_title", "width", "height"],
     },
 )
 async def handle_resize_window(arguments: dict[str, Any]) -> list[TextContent]:
-    win = find_window_strict(arguments["window_title"])
-    w, h = int(arguments["width"]), int(arguments["height"])
-
-    if w < 100 or h < 50:
-        raise ToolError(
-            f"Window size {w}x{h} is too small (min 100x50)",
-            suggestion="Specify larger dimensions",
-        )
+    win = find_window_strict(_window_title(arguments))
+    w = get_int(arguments, "width", required=True, min_value=100, max_value=_MAX_WINDOW_DIMENSION)
+    h = get_int(arguments, "height", required=True, min_value=50, max_value=_MAX_WINDOW_DIMENSION)
 
     await _retry_window_op("resize", win.resizeTo, w, h)
     return [TextContent(type="text", text=f"Resized '{win.title}' to {w}x{h}")]
@@ -290,8 +303,9 @@ async def handle_resize_window(arguments: dict[str, Any]) -> list[TextContent]:
     },
 )
 async def handle_move_window(arguments: dict[str, Any]) -> list[TextContent]:
-    win = find_window_strict(arguments["window_title"])
-    x, y = int(arguments["x"]), int(arguments["y"])
+    win = find_window_strict(_window_title(arguments))
+    x = get_int(arguments, "x", required=True)
+    y = get_int(arguments, "y", required=True)
 
     await _retry_window_op("move", win.moveTo, x, y)
     return [TextContent(type="text", text=f"Moved '{win.title}' to ({x}, {y})")]
@@ -320,9 +334,9 @@ async def handle_move_window(arguments: dict[str, Any]) -> list[TextContent]:
     },
 )
 async def handle_wait_for_window(arguments: dict[str, Any]) -> dict[str, Any]:
-    title = arguments["window_title"]
-    timeout = arguments.get("timeout_seconds", config.default_timeout)
-    interval = arguments.get("poll_interval", 0.5)
+    title = _window_title(arguments)
+    timeout = get_timeout(arguments)
+    interval = get_poll_interval(arguments)
 
     start = time.monotonic()
     while True:

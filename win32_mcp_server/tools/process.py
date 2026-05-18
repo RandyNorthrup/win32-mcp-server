@@ -11,17 +11,93 @@ Tools:
 import asyncio
 import json
 import logging
+import os
 import subprocess
+import tempfile
 import time
+from pathlib import Path
 from typing import Any
 
 import psutil
 from mcp.types import TextContent
 
+from ..config import config
 from ..registry import registry
+from ..utils.args import get_bool, get_float, get_int, get_str, get_timeout
 from ..utils.errors import ToolError
+from ..utils.security import enforce_command_allowed
 
 logger = logging.getLogger("win32-mcp")
+
+
+def _validate_process_request(command: str, args: list[str], cwd: str | None, timeout: float) -> None:
+    if not command.strip():
+        raise ToolError("Command must not be empty")
+    if len(command) > 1_000:
+        raise ToolError("Command is too long")
+    if len(args) > 128:
+        raise ToolError("Too many process arguments")
+    too_long = [arg for arg in args if len(arg) > 4_000]
+    if too_long:
+        raise ToolError("One or more process arguments are too long")
+    if cwd is not None and not Path(cwd).is_dir():
+        raise ToolError(
+            f"Working directory does not exist or is not a directory: {cwd}",
+            suggestion="Provide an existing working_directory or omit it.",
+        )
+    if timeout <= 0 or timeout > config.limits.max_timeout_seconds:
+        raise ToolError(f"timeout_seconds must be between 0 and {config.limits.max_timeout_seconds:g}")
+    enforce_command_allowed(command)
+
+
+def _creation_flags() -> int:
+    flags = 0
+    if os.name == "nt":
+        flags |= getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+    return flags
+
+
+def _read_limited(tmp: Any, max_bytes: int) -> tuple[str, bool]:
+    tmp.seek(0)
+    data = tmp.read(max_bytes + 1)
+    truncated = len(data) > max_bytes
+    if truncated:
+        data = data[:max_bytes]
+    return data.decode("utf-8", errors="replace"), truncated
+
+
+def _run_process_bounded(
+    full_cmd: list[str],
+    cwd: str | None,
+    timeout: float,
+) -> dict[str, Any]:
+    max_bytes = config.limits.max_subprocess_output_bytes
+    with tempfile.TemporaryFile() as stdout_file, tempfile.TemporaryFile() as stderr_file:
+        proc = subprocess.Popen(
+            full_cmd,
+            cwd=cwd,
+            stdin=subprocess.DEVNULL,
+            stdout=stdout_file,
+            stderr=stderr_file,
+            close_fds=True,
+            creationflags=_creation_flags(),
+        )
+        try:
+            returncode = proc.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait(timeout=5)
+            raise
+
+        stdout, stdout_truncated = _read_limited(stdout_file, max_bytes)
+        stderr, stderr_truncated = _read_limited(stderr_file, max_bytes)
+        return {
+            "returncode": returncode,
+            "stdout": stdout,
+            "stderr": stderr,
+            "stdout_truncated": stdout_truncated,
+            "stderr_truncated": stderr_truncated,
+        }
 
 
 @registry.register(
@@ -51,10 +127,10 @@ logger = logging.getLogger("win32-mcp")
     },
 )
 async def handle_list_processes(arguments: dict[str, Any]) -> list[TextContent]:
-    filter_name = arguments.get("filter", "").lower().strip()
-    limit = int(arguments.get("limit", 100))
-    offset = int(arguments.get("offset", 0))
-    sort_by = arguments.get("sort_by", "memory")
+    filter_name = get_str(arguments, "filter", default="").lower().strip()
+    limit = get_int(arguments, "limit", default=100, min_value=1, max_value=500)
+    offset = get_int(arguments, "offset", default=0, min_value=0)
+    sort_by = get_str(arguments, "sort_by", default="memory")
 
     processes: list[dict[str, Any]] = []
 
@@ -129,8 +205,10 @@ async def handle_list_processes(arguments: dict[str, Any]) -> list[TextContent]:
     },
 )
 async def handle_kill_process(arguments: dict[str, Any]) -> list[TextContent]:
-    pid = int(arguments["pid"])
-    force = arguments.get("force", False)
+    pid = get_int(arguments, "pid", required=True, min_value=0)
+    force = get_bool(arguments, "force", default=False)
+    if pid in {0, 4, os.getpid()}:
+        raise ToolError("Refusing to terminate a protected or current process")
 
     try:
         proc = psutil.Process(pid)
@@ -180,11 +258,14 @@ async def handle_kill_process(arguments: dict[str, Any]) -> list[TextContent]:
         "properties": {
             "command": {
                 "type": "string",
+                "minLength": 1,
+                "maxLength": 1000,
                 "description": "Executable path or command name (e.g. 'notepad', 'C:\\\\Program Files\\\\app.exe')",
             },
             "args": {
                 "type": "array",
-                "items": {"type": "string"},
+                "items": {"type": "string", "maxLength": 4000},
+                "maxItems": 128,
                 "description": "Command-line arguments",
             },
             "working_directory": {
@@ -197,6 +278,8 @@ async def handle_kill_process(arguments: dict[str, Any]) -> list[TextContent]:
             },
             "timeout_seconds": {
                 "type": "number",
+                "minimum": 0.1,
+                "maximum": 120,
                 "description": "Timeout in seconds when wait=true (default: 30)",
             },
         },
@@ -204,30 +287,28 @@ async def handle_kill_process(arguments: dict[str, Any]) -> list[TextContent]:
     },
 )
 async def handle_start_process(arguments: dict[str, Any]) -> dict[str, Any]:
-    command = arguments["command"]
+    command = get_str(arguments, "command", required=True, min_length=1, max_length=config.limits.max_command_chars)
     args = arguments.get("args", [])
-    cwd = arguments.get("working_directory")
-    wait = arguments.get("wait", False)
-    timeout = arguments.get("timeout_seconds", 30)
+    if not isinstance(args, list) or not all(isinstance(arg, str) for arg in args):
+        raise ToolError("args must be an array of strings")
+    cwd = get_str(arguments, "working_directory", default="") or None
+    wait = get_bool(arguments, "wait", default=False)
+    timeout = get_timeout(arguments, default=30.0)
 
     full_cmd = [command, *args]
+    _validate_process_request(command, args, cwd, timeout)
 
     if wait:
         try:
-            result = await asyncio.to_thread(
-                subprocess.run,
-                full_cmd,
-                cwd=cwd,
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-            )
+            result = await asyncio.to_thread(_run_process_bounded, full_cmd, cwd, timeout)
             return {
                 "command": command,
                 "args": args,
-                "returncode": result.returncode,
-                "stdout": result.stdout[:10000] if result.stdout else "",
-                "stderr": result.stderr[:10000] if result.stderr else "",
+                "returncode": result["returncode"],
+                "stdout": result["stdout"],
+                "stderr": result["stderr"],
+                "stdout_truncated": result["stdout_truncated"],
+                "stderr_truncated": result["stderr_truncated"],
                 "completed": True,
             }
         except FileNotFoundError as exc:
@@ -246,6 +327,11 @@ async def handle_start_process(arguments: dict[str, Any]) -> dict[str, Any]:
                 subprocess.Popen,
                 full_cmd,
                 cwd=cwd,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                close_fds=True,
+                creationflags=_creation_flags(),
             )
             return {
                 "command": command,
@@ -282,16 +368,18 @@ async def handle_start_process(arguments: dict[str, Any]) -> dict[str, Any]:
             },
             "cpu_threshold": {
                 "type": "number",
+                "minimum": 0,
+                "maximum": 100,
                 "description": "CPU percent below which process is considered idle (default: 5.0)",
             },
         },
     },
 )
 async def handle_wait_for_idle(arguments: dict[str, Any]) -> dict[str, Any]:
-    pid = arguments.get("pid")
-    window_title = arguments.get("window_title")
-    timeout = arguments.get("timeout_seconds", 30)
-    threshold = arguments.get("cpu_threshold", 5.0)
+    pid = get_int(arguments, "pid", min_value=0) if "pid" in arguments and arguments["pid"] is not None else None
+    window_title = get_str(arguments, "window_title", default="")
+    timeout = get_timeout(arguments, default=30.0)
+    threshold = get_float(arguments, "cpu_threshold", default=5.0, min_value=0, max_value=100)
 
     # Resolve PID from window title if needed
     if pid is None and window_title:
@@ -309,7 +397,7 @@ async def handle_wait_for_idle(arguments: dict[str, Any]) -> dict[str, Any]:
         )
 
     try:
-        proc = psutil.Process(int(pid))
+        proc = psutil.Process(pid)
     except psutil.NoSuchProcess as exc:
         raise ToolError(f"Process {pid} not found") from exc
 

@@ -1,3 +1,7 @@
 include README.md
+include CHANGELOG.md
+include CONTRIBUTING.md
 include LICENSE
+include SECURITY.md
 include pyproject.toml
+include win32_mcp_server/py.typed

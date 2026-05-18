@@ -4,7 +4,7 @@
 
 The most comprehensive Windows desktop automation server for the [Model Context Protocol](https://modelcontextprotocol.io/). Give any MCP-compatible AI agent full control over Windows applications: intelligent text finding and clicking, structured OCR, screenshot capture, mouse/keyboard input, window management, process control, and multi-step batch operations — all through a single MCP server.
 
-[![Version](https://img.shields.io/badge/version-2.5.1-blue)](https://github.com/RandyNorthrup/win32-mcp-server/releases)
+[![Version](https://img.shields.io/badge/version-2.6.0-blue)](https://github.com/RandyNorthrup/win32-mcp-server/releases)
 [![PyPI](https://img.shields.io/pypi/v/win32-mcp-server)](https://pypi.org/project/win32-mcp-server/)
 [![VS Code Marketplace](https://img.shields.io/badge/VS%20Code-Marketplace-007ACC)](https://marketplace.visualstudio.com/items?itemName=RandyNorthrup.win32-mcp-inspector)
 [![Python](https://img.shields.io/badge/python-3.10%2B-green)](https://python.org)
@@ -13,23 +13,16 @@ The most comprehensive Windows desktop automation server for the [Model Context 
 
 ---
 
-## What's New in v2.5
+## What's New in v2.6
 
-- **53 tools** — fully modular, enterprise-quality architecture
-- **UI Automation API** — 6 new tools: inspect control trees, click controls by name, read/set values without coordinates
-- **OCR caching** — perceptual image hashing with 2-second TTL for faster repeated calls
-- **Operation verification** — optional `verify` on `click`/`focus_window`; auto-verify on `kill_process`
-- **VS Code status bar** — live loading/ready/error/disabled indicator in the extension
-- **8 new config settings** — Tesseract path, OCR language, preprocess mode, screenshot format/quality/scale
-- **Smart automation tools** — `click_text`, `wait_for_text`, `fill_field`, `execute_sequence`, and more
-- **Structured OCR** — bounding boxes, confidence scores, and screen coordinates for every word
-- **Fuzzy window matching** — punctuation-aware title matching with intelligent suggestions
-- **DPI-aware coordinates** — automatic per-monitor DPI awareness for high-resolution displays
-- **Image preprocessing** — auto, light_bg, dark_bg, high_contrast modes for better OCR accuracy
-- **Multi-step sequences** — batch multiple tool calls in a single request
-- **Screenshot comparison** — pixel-level diff between current screen and a reference image
-- **Window snapshots** — combined screenshot + OCR in a single call
-- **Robust error handling** — structured JSON errors with actionable suggestions
+- **Security profiles** — `read_only`, `interactive`, allow/block lists, dry-run, and confirmation tokens
+- **Central execution controls** — serialized OS mutation, hard timeouts, bounded subprocess output
+- **Typed argument validation** — consistent bounds for mouse, keyboard, clipboard, window, capture, OCR, process, UIA, and smart tools
+- **UIA-first smart actions** — `click_text` and `fill_field` try control-based automation before OCR fallback
+- **Stable response option** — `WIN32_MCP_RESULT_ENVELOPE` for `{success, tool, data}` JSON dict responses
+- **Advertised safety args** — mutating tool schemas expose `dry_run`; high-risk tool schemas expose `confirmation_token`
+- **CI and release hygiene** — Windows GitHub Actions, contract tests, `SECURITY.md`, `CONTRIBUTING.md`, wheel package-data checks
+- **VS Code extension hardening** — shell-free commands, pinned package version checks, custom Tesseract path support
 
 ---
 
@@ -170,6 +163,34 @@ Add to `%APPDATA%\Claude\claude_desktop_config.json`:
 ### Any MCP Client
 
 The server uses **STDIO transport** and works with any MCP-compatible client.
+
+### CLI Smoke Checks
+
+```powershell
+python -m win32_mcp_server --version
+python -m win32_mcp_server --list-tools
+python -m win32_mcp_server --health-check
+```
+
+### Runtime Environment Settings
+
+Set these in your MCP client's server environment when you need production controls:
+
+| Variable | Purpose |
+|----------|---------|
+| `WIN32_MCP_SECURITY_PROFILE` | `interactive` (default), `read_only`, or `unrestricted` |
+| `WIN32_MCP_ALLOWED_TOOLS` / `WIN32_MCP_BLOCKED_TOOLS` | Comma-separated tool allow/block lists |
+| `WIN32_MCP_ALLOWED_COMMANDS` / `WIN32_MCP_BLOCKED_COMMANDS` | Comma-separated process command allow/block lists |
+| `WIN32_MCP_DRY_RUN` | Simulate mutating tools without touching the OS |
+| `WIN32_MCP_CONFIRMATION_TOKEN` | Require a token argument for high-risk tools (`start_process`, `kill_process`, `close_window`) |
+| `WIN32_MCP_REDACT_SENSITIVE_OUTPUT` | Redact typed, pasted, and clipboard values in responses/logs |
+| `WIN32_MCP_RESULT_ENVELOPE` | Opt into stable JSON dict responses: `{success, tool, data}` |
+| `WIN32_MCP_TESSERACT_PATH` | Explicit Tesseract executable path. Usually not needed on Windows; common install paths are auto-detected. |
+| `WIN32_MCP_OCR_LANGUAGE` / `WIN32_MCP_OCR_PREPROCESS` | OCR language and preprocessing defaults |
+| `WIN32_MCP_CAPTURE_FORMAT` / `WIN32_MCP_CAPTURE_QUALITY` / `WIN32_MCP_CAPTURE_SCALE` | Screenshot defaults |
+| `WIN32_MCP_MAX_TIMEOUT_SECONDS` / `WIN32_MCP_MAX_TOOL_RUNTIME_SECONDS` / `WIN32_MCP_MAX_SUBPROCESS_OUTPUT_BYTES` | Runtime resource bounds |
+| `WIN32_MCP_COORDINATE_VALIDATION` | Validate coordinates against actual monitor rectangles |
+| `WIN32_MCP_PYAUTOGUI_FAILSAFE` | Keep PyAutoGUI fail-safe enabled by default; set `false` only for controlled automation rigs |
 
 ---
 
@@ -331,9 +352,12 @@ win32-mcp-server/
 │   ├── registry.py              # Decorator-based tool registry + dispatch
 │   ├── server.py                # MCP server, stdio transport, health_check
 │   ├── utils/
+│   │   ├── args.py              # Typed tool argument readers and bounds
 │   │   ├── coordinates.py       # DPI awareness, screen geometry, validation
 │   │   ├── errors.py            # ToolError with suggestions
+│   │   ├── execution.py         # Timeouts, dry-run, serialized mutations
 │   │   ├── imaging.py           # Image preprocessing, encoding, diffing
+│   │   ├── security.py          # Safety policy, redaction, command controls
 │   │   └── window_match.py      # Fuzzy title matching, deduplication, PID
 │   └── tools/
 │       ├── capture.py           # Screenshot tools (6)
@@ -346,6 +370,8 @@ win32-mcp-server/
 │       ├── smart.py             # Smart automation tools (8)
 │       └── uia.py               # UI Automation API tools (6)
 ├── extension.js                 # VS Code extension bootstrap
+├── tests/                       # Safety, registry, and contract tests
+├── .github/workflows/ci.yml     # Windows CI quality gate
 ├── package.json                 # VS Code extension manifest
 ├── pyproject.toml               # Python package config
 └── LICENSE                      # MIT License
@@ -366,11 +392,26 @@ The server can:
 
 ### Recommended Practices
 
-1. **Enable only when needed** — disable via VS Code settings when not in use
-2. **Review automation logs** — all tool calls are logged to stderr
-3. **Test in sandboxed environments** first
-4. **Restrict MCP client access** — limit who can invoke the server
-5. **Be aware**: PyAutoGUI failsafe is disabled for uninterrupted automation
+1. **Start restrictive** — default `interactive` blocks high-risk process/window actions; use `read_only` for observation-only sessions
+2. **Use allow/block lists** — set `WIN32_MCP_ALLOWED_TOOLS`, `WIN32_MCP_BLOCKED_TOOLS`, and command lists for production
+3. **Dry-run first** — use `WIN32_MCP_DRY_RUN=true` or per-call `dry_run: true` before granting mutating control
+4. **Require confirmation tokens** — set `WIN32_MCP_CONFIRMATION_TOKEN` for high-risk process/window actions
+5. **Review automation logs** — tool calls are logged with sensitive fields redacted
+6. **Restrict MCP client access** — only trusted clients should invoke this server
+
+---
+
+## Quality Gates
+
+Run the same checks as CI before shipping changes:
+
+```powershell
+python -m pip install -e .[dev]
+python -m ruff check win32_mcp_server tests
+python -m mypy win32_mcp_server
+python -m pytest -q
+node --check extension.js
+```
 
 ---
 
@@ -378,7 +419,7 @@ The server can:
 
 | Problem | Solution |
 |---------|----------|
-| `TesseractNotFoundError` | Install from https://github.com/UB-Mannheim/tesseract/wiki and add to PATH |
+| `TesseractNotFoundError` | Install with `winget install --id tesseract-ocr.tesseract --exact`; PATH is optional for common Windows installs |
 | `PermissionError: Access is denied` | Run VS Code / MCP client as Administrator |
 | `ModuleNotFoundError: No module named 'mcp'` | `pip install -e .` or `pip install win32-mcp-server` |
 | `Window not found: [title]` | Use partial title. Run `list_windows` to see exact titles. Fuzzy matching is automatic. |

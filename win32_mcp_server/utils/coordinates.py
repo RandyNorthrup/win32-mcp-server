@@ -101,6 +101,21 @@ def get_all_monitors() -> list[dict[str, Any]]:
         return monitors
 
 
+def point_in_monitor(x: int, y: int, monitor: dict[str, Any]) -> bool:
+    """Return True if a point is inside a monitor rect."""
+    left = int(monitor["x"])
+    top = int(monitor["y"])
+    right = left + int(monitor["width"])
+    bottom = top + int(monitor["height"])
+    return left <= x < right and top <= y < bottom
+
+
+def point_in_any_monitor(x: int, y: int, monitors: list[dict[str, Any]] | None = None) -> bool:
+    """Return True if a point is inside the actual union of monitor rects."""
+    monitor_list = monitors if monitors is not None else get_all_monitors()
+    return any(point_in_monitor(x, y, monitor) for monitor in monitor_list)
+
+
 # ---------------------------------------------------------------------------
 # Coordinate Validation
 # ---------------------------------------------------------------------------
@@ -109,18 +124,13 @@ def get_all_monitors() -> list[dict[str, Any]]:
 def validate_coordinates(x: int, y: int, context: str = "operation") -> None:
     """Raise ToolError if (x, y) is outside any monitor bounds.
 
-    Uses virtual screen (all monitors combined) for validation.
+    Checks actual monitor rectangles, not just virtual-screen bounding box.
     """
-    with mss() as sct:
-        virtual = sct.monitors[0]
-        min_x = virtual["left"]
-        min_y = virtual["top"]
-        max_x = min_x + virtual["width"]
-        max_y = min_y + virtual["height"]
-
-    if x < min_x or x >= max_x or y < min_y or y >= max_y:
+    monitors = get_all_monitors()
+    if not point_in_any_monitor(x, y, monitors):
+        bounds = [f"({m['x']},{m['y']})-({m['x'] + m['width']},{m['y'] + m['height']})" for m in monitors]
         raise ToolError(
-            f"Coordinates ({x}, {y}) are outside screen bounds ({min_x},{min_y})-({max_x},{max_y}) for {context}",
+            f"Coordinates ({x}, {y}) are outside monitor bounds for {context}: {', '.join(bounds)}",
             suggestion="Use capture_screen or list_monitors to check screen dimensions",
         )
 
