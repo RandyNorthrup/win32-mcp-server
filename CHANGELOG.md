@@ -4,7 +4,7 @@ All notable changes to the **Windows Automation Inspector (MCP)** extension will
 
 ## [Unreleased]
 
-## [2.6.0] — 2026-05-18
+## [2.6.1] — 2026-05-18
 
 ### Added
 - Runtime safety profiles via `WIN32_MCP_SECURITY_PROFILE` (`read_only`, `interactive`, `unrestricted`), plus allow/block lists.

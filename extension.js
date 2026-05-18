@@ -4,7 +4,7 @@ const { promisify } = require('util');
 
 const execFileAsync = promisify(execFile);
 const PACKAGE_NAME = 'win32-mcp-server';
-const PACKAGE_VERSION = '2.6.0';
+const PACKAGE_VERSION = '2.6.1';
 const INSTALL_SPEC = `${PACKAGE_NAME}==${PACKAGE_VERSION}`;
 
 async function run(cmd, args, options = {}) {

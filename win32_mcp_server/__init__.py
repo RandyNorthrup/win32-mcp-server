@@ -12,7 +12,7 @@ GitHub: https://github.com/RandyNorthrup/win32-mcp-server
 import sys
 from collections.abc import Sequence
 
-__version__ = "2.6.0"
+__version__ = "2.6.1"
 
 
 def main(argv: Sequence[str] | None = None) -> None:
