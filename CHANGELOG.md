@@ -28,6 +28,7 @@ All notable changes to the **Windows Automation Inspector (MCP)** extension will
 - Package classifier moved to `Production/Stable`.
 
 ### Fixed
+- Added the `types-psutil` development dependency so strict mypy CI passes across the release matrix.
 - Detached started processes from MCP stdio to avoid protocol corruption.
 - Bounded waited process output to prevent memory growth.
 - Hardened mouse, keyboard, clipboard, window, capture, OCR, process, smart, and UIA argument parsing to reject malformed inputs consistently.
