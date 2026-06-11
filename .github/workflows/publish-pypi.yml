@@ -17,6 +17,7 @@ jobs:
   publish:
     name: Build and publish Python package
     runs-on: ubuntu-latest
+    environment: pypi
     permissions:
       contents: read
       id-token: write

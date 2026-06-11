@@ -415,7 +415,7 @@ node --check extension.js
 
 ## Release Publishing
 
-GitHub release assets are published from local build output. PyPI publishing runs through the **Publish PyPI** GitHub Actions workflow using PyPI Trusted Publishing. Configure the PyPI project for repository `RandyNorthrup/win32-mcp-server`, workflow `publish-pypi.yml`, with no environment value, then run the workflow with the target release tag.
+GitHub release assets are published from local build output. PyPI publishing runs through the **Publish PyPI** GitHub Actions workflow using PyPI Trusted Publishing. Configure the PyPI project for repository `RandyNorthrup/win32-mcp-server`, workflow `publish-pypi.yml`, environment `pypi`, then run the workflow with the target release tag.
 
 ---
 

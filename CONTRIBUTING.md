@@ -21,7 +21,7 @@ For Trusted Publishing, configure the PyPI project with:
 - Owner: `RandyNorthrup`
 - Repository: `win32-mcp-server`
 - Workflow: `publish-pypi.yml`
-- Environment: leave blank
+- Environment: `pypi`
 
 To publish an existing tag after the workflow is on `main`, run the **Publish PyPI** workflow manually and set `ref` to the release tag, for example `v2.6.1`.
 
