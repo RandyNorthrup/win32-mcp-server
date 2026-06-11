@@ -4,6 +4,10 @@ All notable changes to the **Windows Automation Inspector (MCP)** extension will
 
 ## [Unreleased]
 
+### Added
+- Added a manual and release-triggered PyPI publishing workflow using Trusted Publishing.
+- Hardened GitHub Actions by pinning action SHAs, reducing permissions, disabling checkout credential persistence, and validating PyPI publish refs.
+
 ## [2.6.1] — 2026-05-18
 
 ### Added
